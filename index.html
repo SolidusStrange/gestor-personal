@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso · Perfil y revisión semanal</title>
+  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.4 · Resumen y estadísticas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=1.4">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js" defer></script>
+  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.4" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -29,15 +29,55 @@
     <div id="notice" class="notice" role="status" hidden></div>
 
     <section id="dashboard-view" class="view">
-      <div class="hero-grid">
-        <article class="panel level-panel"><div class="level-top"><div><div class="eyebrow">TU PROGRESO</div><div class="level-number">Nivel <strong id="level-value">1</strong></div><p id="level-caption">Cada acción suma experiencia.</p><div class="rank-line"><span class="rank-badge" id="rank-badge">🌱 Iniciado</span><span class="rank-next-caption" id="rank-next-caption">Tu rango inicial</span></div></div><div class="level-emblem" id="level-emblem">✦</div></div><div class="xp-row"><strong id="xp-total">0 XP</strong><span id="xp-next">0 / 100 XP para el siguiente nivel</span></div><div class="progress-track"><div id="level-progress" class="progress-fill"></div></div></article>
-        <article class="panel stat-panel"><div class="eyebrow">HOY</div><div class="stat-number" id="today-done">0/0</div><div class="stat-label">Tareas completadas</div><div class="stat-foot" id="today-xp">+0 XP ganados hoy</div></article>
-        <article class="panel stat-panel"><div class="eyebrow">RUTINA</div><div class="stat-number" id="habit-done">0/0</div><div class="stat-label">Hábitos realizados hoy</div><div class="stat-foot" id="habit-streak">Un día a la vez.</div></article>
+      <div class="dashboard-welcome-grid">
+        <article class="panel dashboard-profile-card">
+          <div class="dashboard-profile-main">
+            <div id="dashboard-avatar-preview" class="dashboard-avatar"><img id="dashboard-avatar-image" alt="" hidden><span class="avatar-default" aria-hidden="true"></span></div>
+            <div class="dashboard-profile-copy">
+              <div class="eyebrow">TU ESPACIO PERSONAL</div>
+              <h2 id="dashboard-profile-name">Mi perfil</h2>
+              <p id="dashboard-profile-subtitle" class="muted">Tu progreso, a tu ritmo.</p>
+              <div class="dashboard-profile-tags"><span class="rank-badge" id="dashboard-profile-rank">Iniciado</span><span class="dashboard-level-tag" id="dashboard-profile-level">Nivel 1</span></div>
+            </div>
+          </div>
+          <div class="dashboard-level-progress"><div><span id="dashboard-level-caption">Progreso al siguiente nivel</span><strong id="dashboard-level-count">0 / 100 XP</strong></div><div class="progress-track"><div id="dashboard-level-progress" class="progress-fill"></div></div></div>
+          <div class="dashboard-profile-footer"><span id="dashboard-profile-xp">0 XP acumulados</span><button class="text-button" data-view-link="progress">Editar perfil y ver rangos →</button></div>
+        </article>
+        <article class="panel dashboard-featured-achievements">
+          <div class="panel-heading"><div><div class="eyebrow">TUS HITOS</div><h3>Logros destacados</h3></div><div class="dashboard-achievement-actions"><span id="dashboard-achievement-count" class="achievement-count">0 / 7</span><button class="text-button" data-view-link="missions">Ver colección</button></div></div>
+          <div id="dashboard-achievements" class="dashboard-achievement-list"></div>
+        </article>
       </div>
+
+      <div class="dashboard-stat-grid">
+        <article class="panel dashboard-stat-card"><div class="eyebrow">TRAYECTORIA</div><strong id="dashboard-stat-tasks" class="dashboard-stat-value">0</strong><span class="dashboard-stat-label">Tareas completadas</span><small id="dashboard-stat-tasks-note" class="dashboard-stat-note">En total</small></article>
+        <article class="panel dashboard-stat-card"><div class="eyebrow">ESTA SEMANA</div><strong id="dashboard-stat-week-tasks" class="dashboard-stat-value">0</strong><span class="dashboard-stat-label">Tareas completadas</span><small id="dashboard-stat-week-tasks-note" class="dashboard-stat-note">Desde el lunes</small></article>
+        <article class="panel dashboard-stat-card"><div class="eyebrow">CONSTANCIA</div><strong id="dashboard-stat-habits" class="dashboard-stat-value">0</strong><span class="dashboard-stat-label">Registros de hábitos</span><small id="dashboard-stat-habits-note" class="dashboard-stat-note">Acumulados</small></article>
+        <article class="panel dashboard-stat-card"><div class="eyebrow">CUMPLIMIENTO</div><strong id="dashboard-stat-rate" class="dashboard-stat-value">—</strong><span class="dashboard-stat-label">Hábitos esta semana</span><small id="dashboard-stat-rate-note" class="dashboard-stat-note">Sin datos todavía</small></article>
+        <article class="panel dashboard-stat-card"><div class="eyebrow">EXPERIENCIA</div><strong id="dashboard-stat-xp" class="dashboard-stat-value">0 XP</strong><span class="dashboard-stat-label">XP acumulados</span><small id="dashboard-stat-xp-note" class="dashboard-stat-note">Progreso permanente</small></article>
+      </div>
+
       <article class="panel dashboard-mission-panel" id="dashboard-mission-panel">
         <div class="panel-heading"><div><div class="eyebrow">TU OBJETIVO PRINCIPAL</div><h3>Misión semanal</h3></div><button class="text-button" data-view-link="missions">Ver misiones</button></div>
         <div id="dashboard-mission-content" class="mission-dashboard-content"></div>
       </article>
+
+      <article class="panel dashboard-analytics-panel">
+        <div class="panel-heading dashboard-analytics-heading">
+          <div><div class="eyebrow">EVOLUCIÓN Y CONSTANCIA</div><h3>Cómo avanzan tus hábitos</h3><p class="muted">Observa tu cumplimiento semanal y detecta cambios en tu ritmo.</p></div>
+          <div class="habit-chart-controls"><label class="chart-range-label" for="dashboard-chart-habit">Hábito<select id="dashboard-chart-habit" aria-label="Hábito del resumen"><option value="all">Todos los hábitos</option></select></label><label class="chart-range-label" for="dashboard-chart-range">Período<select id="dashboard-chart-range" aria-label="Período del resumen"><option value="4">4 semanas</option><option value="8" selected>8 semanas</option><option value="12">12 semanas</option></select></label></div>
+        </div>
+        <div class="dashboard-analytics-grid">
+          <div><div id="dashboard-habit-chart-summary" class="chart-summary">Sin datos todavía</div><div id="dashboard-habit-chart" class="habit-chart dashboard-habit-chart" aria-live="polite"></div><div class="chart-footnote">El cálculo considera únicamente los días que ya correspondía realizar en la semana actual.</div></div>
+          <aside class="dashboard-insight-side"><div class="eyebrow">LECTURA DE TU PROGRESO</div><h4 id="dashboard-trend-title">Tu línea de base</h4><p id="dashboard-trend-copy" class="muted">Registra tus hábitos para comenzar a observar tendencias.</p><div class="dashboard-habit-breakdown"><strong>Esta semana por hábito</strong><div id="dashboard-habit-breakdown"></div></div><button class="text-button" data-view-link="review">Abrir revisión semanal →</button></aside>
+        </div>
+      </article>
+
+      <article class="panel dashboard-recent-panel">
+        <div class="panel-heading"><div><div class="eyebrow">TU HISTORIAL RECIENTE</div><h3>Últimas tareas completadas</h3><p class="muted">Consulta qué terminaste y en qué día.</p></div><button class="text-button" data-view-link="tasks">Ver tareas</button></div>
+        <div id="dashboard-recent-completions" class="dashboard-recent-list"></div>
+      </article>
+
       <div class="section-heading"><div><div class="eyebrow">PARA HOY</div><h2>Tu día en marcha</h2></div><button class="primary small" data-open-task>+ Nueva tarea</button></div>
       <div class="dashboard-columns"><article class="panel"><div class="panel-heading"><h3>Tareas pendientes</h3><button class="text-button" data-view-link="tasks">Ver todas</button></div><div id="dashboard-task-list" class="compact-list"></div></article><article class="panel"><div class="panel-heading"><h3>Hábitos de hoy</h3><button class="text-button" data-view-link="habits">Ver hábitos</button></div><div id="dashboard-habit-list" class="compact-list"></div></article></div>
     </section>
@@ -56,9 +96,7 @@
       <div id="habit-list" class="habit-grid"></div>
       <article class="panel habit-chart-panel">
         <div class="panel-heading habit-chart-heading"><div><h3>Cumplimiento de hábitos</h3><p class="muted">Evolución semanal de los hábitos que tenías programados.</p></div>
-          <label class="chart-range-label" for="habit-chart-range">Período
-            <select id="habit-chart-range" aria-label="Período del gráfico"><option value="4">4 semanas</option><option value="8" selected>8 semanas</option><option value="12">12 semanas</option></select>
-          </label>
+          <div class="habit-chart-controls"><label class="chart-range-label" for="habit-chart-habit">Hábito<select id="habit-chart-habit" aria-label="Hábito del gráfico"><option value="all">Todos los hábitos</option></select></label><label class="chart-range-label" for="habit-chart-range">Período<select id="habit-chart-range" aria-label="Período del gráfico"><option value="4">4 semanas</option><option value="8" selected>8 semanas</option><option value="12">12 semanas</option></select></label></div>
         </div>
         <div id="habit-chart-summary" class="chart-summary">Aún no hay registros suficientes.</div>
         <div id="habit-chart" class="habit-chart" aria-live="polite"></div>

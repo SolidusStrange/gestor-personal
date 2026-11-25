@@ -1,5 +1,5 @@
 /*
- * MI PROGRESO V1.3 — lógica de la aplicación.
+ * MI PROGRESO V1.4 — resumen, analítica y lógica de la aplicación.
  * HTML define la estructura; este archivo gestiona estado, eventos,
  * validación, renderizado y comunicación con Supabase.
  */
@@ -139,6 +139,7 @@
   function renderAvatarImage() {
     paintAvatar("#avatar", "#avatar-image");
     paintAvatar("#profile-avatar-preview", "#profile-avatar-image");
+    paintAvatar("#dashboard-avatar-preview", "#dashboard-avatar-image");
   }
 
   async function refreshAvatarUrl() {
@@ -212,20 +213,21 @@
     const nextText = progression.nextRank
       ? `Siguiente rango: ${progression.nextRank.name} · ${nextRankXp.toLocaleString("es-CL")} XP`
       : "Has alcanzado el rango máximo.";
-    $("#level-value").textContent = progression.level;
-    $("#xp-total").textContent = `${total} XP`;
-    $("#xp-next").textContent = `${progression.inLevel} / ${progression.needed} XP para el siguiente nivel`;
-    $("#level-progress").style.width = `${progression.percent}%`;
-    $("#level-caption").textContent = `Siguiente nivel: ${progression.needed - progression.inLevel} XP restantes.`;
-    $("#rank-badge").innerHTML = `${progression.rank.symbol} ${progression.rank.name}`;
-    $("#rank-next-caption").textContent = nextText;
-    $("#level-emblem").textContent = progression.rank.symbol;
-    $("#progress-xp-total").textContent = `${total} XP`;
-    $("#progress-level-caption").textContent = `Nivel ${progression.level} · ${progression.inLevel}/${progression.needed} XP hacia el siguiente nivel`;
+    const setText = (selector, value) => { const element = $(selector); if (element) element.textContent = value; };
+    const setWidth = (selector, value) => { const element = $(selector); if (element) element.style.width = `${value}%`; };
+    setText("#level-value", progression.level);
+    setText("#xp-total", `${total} XP`);
+    setText("#xp-next", `${progression.inLevel} / ${progression.needed} XP para el siguiente nivel`);
+    setWidth("#level-progress", progression.percent);
+    setText("#level-caption", `Siguiente nivel: ${progression.needed - progression.inLevel} XP restantes.`);
+    setText("#rank-badge", `${progression.rank.symbol} ${progression.rank.name}`);
+    setText("#rank-next-caption", nextText);
+    setText("#level-emblem", progression.rank.symbol);
+    setText("#progress-xp-total", `${total} XP`);
+    setText("#progress-level-caption", `Nivel ${progression.level} · ${progression.inLevel}/${progression.needed} XP hacia el siguiente nivel`);
     renderRankLadder(progression);
     return total;
   }
-
   function taskRow(task, compact = false) {
     const category = state.categories.find(cat => cat.id === task.category_id);
     const done = Boolean(task.completed_at);
@@ -237,18 +239,75 @@
     </div>`;
   }
 
+  function formatCompletedDay(value) {
+    if (!value) return "Fecha no disponible";
+    const date = new Date(value);
+    const formatted = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
+    return formatted.charAt(0).toLocaleUpperCase("es-CL") + formatted.slice(1);
+  }
+
+  function formatXPEventDay(event) {
+    const date = event.event_date ? fromLocalISO(String(event.event_date).slice(0, 10)) : new Date(event.created_at || Date.now());
+    const dateLabel = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "short" }).format(date);
+    const timeLabel = event.created_at ? new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit" }).format(new Date(event.created_at)) : "";
+    const capitalized = dateLabel.charAt(0).toLocaleUpperCase("es-CL") + dateLabel.slice(1);
+    return timeLabel ? `${capitalized} · ${timeLabel}` : capitalized;
+  }
+
   function renderDashboard() {
-    const totalXp = state.xpEvents.filter(event => event.event_date === todayISO()).reduce((sum, event) => sum + Number(event.xp_amount), 0);
-    const todayTasks = state.tasks.filter(task => task.completed_at && localDateFromTimestamp(task.completed_at) === todayISO());
+    const totalXp = state.xpEvents.reduce((sum, event) => sum + Number(event.xp_amount || 0), 0);
+    const taskEvents = state.xpEvents.filter(event => event.source_type === "task");
+    const weekStart = currentWeekStart();
+    const weekEnd = addDaysISO(weekStart, 6);
+    const weeklyTaskEvents = taskEvents.filter(event => event.event_date >= weekStart && event.event_date <= weekEnd);
+    const progression = getProgression(totalXp);
+    const currentHabitWeek = buildHabitWeeklySeries(1)[0];
+    const userLabel = state.user?.user_metadata?.full_name || state.user?.email?.split("@")[0] || "Mi perfil";
+    $("#dashboard-profile-name").textContent = userLabel;
+    $("#dashboard-profile-subtitle").textContent = state.user?.email || "Tu espacio personal";
+    $("#dashboard-profile-rank").textContent = `${progression.rank.symbol} ${progression.rank.name}`;
+    $("#dashboard-profile-level").textContent = `Nivel ${progression.level}`;
+    $("#dashboard-profile-xp").textContent = `${totalXp.toLocaleString("es-CL")} XP acumulados`;
+    $("#dashboard-level-caption").textContent = progression.nextRank ? `Progreso hacia el nivel ${progression.level + 1}` : "Nivel máximo alcanzado";
+    $("#dashboard-level-count").textContent = `${progression.inLevel} / ${progression.needed} XP`;
+    $("#dashboard-level-progress").style.width = `${progression.percent}%`;
+
+    $("#dashboard-stat-tasks").textContent = taskEvents.length.toLocaleString("es-CL");
+    $("#dashboard-stat-tasks-note").textContent = "Completadas y registradas";
+    $("#dashboard-stat-week-tasks").textContent = weeklyTaskEvents.length.toLocaleString("es-CL");
+    $("#dashboard-stat-week-tasks-note").textContent = `${fmtDate(weekStart)} – ${fmtDate(weekEnd)}`;
+    const habitEvents = state.xpEvents.filter(event => event.source_type === "habit");
+    $("#dashboard-stat-habits").textContent = habitEvents.length.toLocaleString("es-CL");
+    $("#dashboard-stat-habits-note").textContent = `${state.habits.length} hábitos activos`;
+    $("#dashboard-stat-rate").textContent = currentHabitWeek?.expected ? `${currentHabitWeek.percent}%` : "—";
+    $("#dashboard-stat-rate-note").textContent = currentHabitWeek?.expected ? `${currentHabitWeek.completed}/${currentHabitWeek.expected} registros programados` : "Sin datos todavía";
+    $("#dashboard-stat-xp").textContent = `${totalXp.toLocaleString("es-CL")} XP`;
+    $("#dashboard-stat-xp-note").textContent = `Nivel ${progression.level} · ${progression.rank.name}`;
+
+    const achievements = getAchievements();
+    const unlocked = achievements.filter(item => item.unlocked).sort((a, b) => String(b.unlockedAt || "").localeCompare(String(a.unlockedAt || "")));
+    $("#dashboard-achievement-count").textContent = `${unlocked.length} / ${achievements.length}`;
+    const featured = (unlocked.length ? unlocked.slice(0, 3) : achievements.filter(item => !item.unlocked).slice(0, 3));
+    $("#dashboard-achievements").innerHTML = featured.map(item => `<div class="dashboard-achievement-item ${item.unlocked ? "is-unlocked" : "is-locked"}"><span class="dashboard-achievement-icon">${item.icon}</span><span><strong>${escapeHtml(item.title)}</strong><small>${item.unlocked ? `Desbloqueado${item.unlockedAt ? ` · ${fmtDate(item.unlockedAt)}` : ""}` : escapeHtml(item.description)}</small></span></div>`).join("") || `<div class="empty-state compact-empty">Tus primeros logros aparecerán aquí.</div>`;
+
     const activeTasks = state.tasks.filter(task => !task.archived_at && !task.completed_at).sort((a, b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
     const todaysHabits = state.habits.filter(isHabitScheduledToday);
-    const completedHabits = todaysHabits.filter(isHabitDoneThisPeriod);
-    $("#today-done").textContent = `${todayTasks.length}/${state.tasks.filter(t => !t.archived_at && (!t.due_date || t.due_date <= todayISO())).length}`;
-    $("#today-xp").textContent = `+${totalXp} XP ganados hoy`;
-    $("#habit-done").textContent = `${completedHabits.length}/${todaysHabits.length}`;
-    $("#habit-streak").textContent = completedHabits.length ? "Buen trabajo. Mantén la constancia." : "Un día a la vez.";
     $("#dashboard-task-list").innerHTML = activeTasks.slice(0, 6).map(task => taskRow(task, true)).join("") || `<div class="empty-state">No tienes tareas pendientes. Crea una para empezar.</div>`;
     $("#dashboard-habit-list").innerHTML = todaysHabits.slice(0, 6).map(habit => habitCompact(habit)).join("") || `<div class="empty-state">Todavía no has creado hábitos.</div>`;
+
+    const recentTaskEvents = taskEvents.map(event => {
+      const task = state.tasks.find(item => item.id === event.source_id);
+      const sortDate = task?.completed_at || event.created_at || event.event_date;
+      return { event, task, sortDate };
+    }).sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate)).slice(0, 6);
+    $("#dashboard-recent-completions").innerHTML = recentTaskEvents.map(({ event, task }) => {
+      const category = task ? state.categories.find(item => item.id === task.category_id) : null;
+      const dateLabel = task?.completed_at ? formatCompletedDay(task.completed_at) : formatXPEventDay(event);
+      const detail = category ? ` · ${escapeHtml(category.name)}` : "";
+      const tag = task ? `<span class="difficulty-pill difficulty-${task.difficulty || "medium"}">${DIFFICULTY_LABEL[task.difficulty] || "Media"}</span>` : `<strong class="history-xp">+${Number(event.xp_amount || 0)} XP</strong>`;
+      return `<div class="dashboard-recent-row"><span class="dashboard-recent-check" aria-hidden="true">✓</span><div class="dashboard-recent-copy"><strong>${escapeHtml(event.title_snapshot)}</strong><small>${dateLabel}${detail}</small></div>${tag}</div>`;
+    }).join("") || `<div class="empty-state">Cuando completes tareas, aquí aparecerán las más recientes junto con el día y la hora.</div>`;
+    renderDashboardAnalytics();
   }
 
   function renderTasks() {
@@ -292,50 +351,69 @@
     return String(habit.created_at || "0000-01-01").slice(0, 10);
   }
 
-  function buildHabitWeeklySeries(weeksToShow) {
+  function getHabitWeekMetrics(habit, weekStart) {
+    const weekEnd = addDaysISO(weekStart, 6);
+    const effectiveEnd = weekStart === currentWeekStart() ? todayISO() : weekEnd;
+    const createdOn = habitCreatedOn(habit);
+    let expected = 0;
+    let completed = 0;
+    if (habit.frequency === "weekly") {
+      if (createdOn <= weekEnd) {
+        expected = 1;
+        completed = state.habitLogs.some(log => log.habit_id === habit.id && log.period_start === weekStart) ? 1 : 0;
+      }
+      return { expected, completed, percent: expected ? Math.round((completed / expected) * 100) : null };
+    }
+    for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
+      const day = fromLocalISO(weekStart); day.setDate(day.getDate() + dayOffset);
+      const iso = toLocalISO(day);
+      if (iso > effectiveEnd) break;
+      const scheduled = habit.frequency === "daily" || (habit.frequency === "weekdays" && ![0, 6].includes(day.getDay()));
+      if (!scheduled || iso < createdOn) continue;
+      expected += 1;
+      if (state.habitLogs.some(log => log.habit_id === habit.id && log.completed_on === iso)) completed += 1;
+    }
+    return { expected, completed, percent: expected ? Math.round((completed / expected) * 100) : null };
+  }
+
+  function buildHabitWeekBreakdown(weekStart = currentWeekStart()) {
+    return state.habits.map(habit => ({ habit, ...getHabitWeekMetrics(habit, weekStart) }))
+      .filter(item => item.expected > 0)
+      .sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1) || a.habit.title.localeCompare(b.habit.title, "es"));
+  }
+
+  function buildHabitWeeklySeries(weeksToShow, habitId = null) {
     const current = weekStartFor(new Date());
+    const selectedHabits = habitId ? state.habits.filter(habit => habit.id === habitId) : state.habits;
     const weeks = [];
     for (let offset = weeksToShow - 1; offset >= 0; offset -= 1) {
       const monday = new Date(current);
       monday.setDate(monday.getDate() - (offset * 7));
       const weekStart = toLocalISO(monday);
-      const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6);
-      const weekEnd = toLocalISO(sunday);
       let expected = 0;
       let completed = 0;
-      for (const habit of state.habits) {
-        const createdOn = habitCreatedOn(habit);
-        if (habit.frequency === "weekly") {
-          if (createdOn <= weekEnd) {
-            expected += 1;
-            if (state.habitLogs.some(log => log.habit_id === habit.id && log.period_start === weekStart)) completed += 1;
-          }
-          continue;
-        }
-        for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
-          const day = new Date(monday); day.setDate(day.getDate() + dayOffset);
-          const iso = toLocalISO(day);
-          const weekday = day.getDay();
-          const scheduled = habit.frequency === "daily" || (habit.frequency === "weekdays" && weekday !== 0 && weekday !== 6);
-          if (!scheduled || iso < createdOn) continue;
-          expected += 1;
-          if (state.habitLogs.some(log => log.habit_id === habit.id && log.completed_on === iso)) completed += 1;
-        }
+      for (const habit of selectedHabits) {
+        const metrics = getHabitWeekMetrics(habit, weekStart);
+        expected += metrics.expected;
+        completed += metrics.completed;
       }
       weeks.push({ weekStart, expected, completed, percent: expected ? Math.round((completed / expected) * 100) : null });
     }
     return weeks;
   }
 
-  function renderHabitChart() {
-    const host = $("#habit-chart");
-    if (!host) return;
-    const range = Number($("#habit-chart-range")?.value || 8);
-    const series = buildHabitWeeklySeries(range);
+  function renderHabitChart(hostSelector = "#habit-chart", summarySelector = "#habit-chart-summary", rangeSelector = "#habit-chart-range", habitSelector = "#habit-chart-habit") {
+    const host = $(hostSelector);
+    const summary = $(summarySelector);
+    if (!host || !summary) return;
+    const range = Number($(rangeSelector)?.value || 8);
+    const selectedHabitId = $(habitSelector)?.value || "all";
+    const selectedHabit = selectedHabitId === "all" ? null : state.habits.find(habit => habit.id === selectedHabitId) || null;
+    const series = buildHabitWeeklySeries(range, selectedHabit?.id || null);
     const valid = series.map((item, index) => ({ ...item, index })).filter(item => item.expected > 0);
     if (!valid.length) {
       host.innerHTML = `<div class="empty-state">Registra algunos hábitos para comenzar a ver tu evolución semanal.</div>`;
-      $("#habit-chart-summary").textContent = "Sin datos todavía";
+      summary.textContent = "Sin datos todavía";
       return;
     }
     const width = 820, height = 270, left = 48, right = 20, top = 18, bottom = 44;
@@ -356,10 +434,53 @@
     const markers = points.map(point => `<circle cx="${point.x}" cy="${point.y}" r="5" class="chart-point"><title>Semana del ${fmtDate(point.weekStart)}: ${point.percent}% (${point.completed}/${point.expected})</title></circle>`).join("");
     host.innerHTML = `<svg class="habit-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Gráfico de línea del porcentaje semanal de cumplimiento de hábitos">${grid}${path}${markers}${xLabels}</svg>`;
     const latest = valid[valid.length - 1];
-    const totalCompleted = latest.completed;
-    const totalExpected = latest.expected;
-    const periodLabel = latest.weekStart === currentWeekStart() ? "Semana en curso" : "Última semana registrada";
-    $("#habit-chart-summary").textContent = `${periodLabel}: ${latest.percent}% · ${totalCompleted} de ${totalExpected} registros programados`;
+    const closedWeeks = valid.filter(item => item.weekStart < currentWeekStart());
+    const avg = closedWeeks.length ? Math.round(closedWeeks.reduce((sum, item) => sum + item.percent, 0) / closedWeeks.length) : latest.percent;
+    const periodLabel = latest.weekStart === currentWeekStart() ? "Semana actual hasta hoy" : "Última semana registrada";
+    const subject = selectedHabit ? `${selectedHabit.title}: ` : "Todos los hábitos: ";
+    summary.textContent = `${subject}${periodLabel.toLocaleLowerCase("es-CL")}: ${latest.percent}% · ${latest.completed} de ${latest.expected} registros · promedio del período: ${avg}%`;
+  }
+
+  function renderHabitChartOptions() {
+    for (const selector of ["#habit-chart-habit", "#dashboard-chart-habit"]) {
+      const select = $(selector);
+      if (!select) continue;
+      const current = select.value || "all";
+      select.innerHTML = `<option value="all">Todos los hábitos</option>` + state.habits.map(habit => `<option value="${habit.id}">${escapeHtml(habit.title)}</option>`).join("");
+      select.value = state.habits.some(habit => habit.id === current) ? current : "all";
+    }
+  }
+
+  function renderDashboardAnalytics() {
+    const history = buildHabitWeeklySeries(12).filter(item => item.expected > 0 && item.weekStart < currentWeekStart());
+    const title = $("#dashboard-trend-title");
+    const copy = $("#dashboard-trend-copy");
+    if (!title || !copy) return;
+    if (!history.length) {
+      title.textContent = "Tu línea de base";
+      copy.textContent = "Todavía no hay semanas completas para comparar. Registra tus hábitos y revisaremos la evolución cuando haya datos suficientes.";
+    } else if (history.length === 1) {
+      title.textContent = `Primera referencia: ${history[0].percent}%`;
+      copy.textContent = `En la semana del ${fmtDate(history[0].weekStart)} completaste ${history[0].completed} de ${history[0].expected} registros programados. La próxima semana tendremos una comparación.`;
+    } else {
+      const previous = history[history.length - 2];
+      const latest = history[history.length - 1];
+      const delta = latest.percent - previous.percent;
+      if (delta > 0) {
+        title.textContent = `Mejoraste ${delta} puntos`;
+        copy.textContent = `Tu cumplimiento subió de ${previous.percent}% a ${latest.percent}%. Identifica qué facilitó esa semana y procura repetirlo.`;
+      } else if (delta < 0) {
+        title.textContent = `Variación de ${Math.abs(delta)} puntos`;
+        copy.textContent = `El cumplimiento pasó de ${previous.percent}% a ${latest.percent}%. Úsalo como información: quizá conviene cambiar el momento o reducir el primer paso.`;
+      } else {
+        title.textContent = `Ritmo estable: ${latest.percent}%`;
+        copy.textContent = `Tu cumplimiento se mantuvo en ${latest.percent}%. Puedes conservar la meta y observar otra semana antes de modificarla.`;
+      }
+    }
+    const breakdownHost = $("#dashboard-habit-breakdown");
+    if (!breakdownHost) return;
+    const breakdown = buildHabitWeekBreakdown();
+    breakdownHost.innerHTML = breakdown.map(item => `<div class="dashboard-habit-row"><div class="dashboard-habit-row-head"><span title="${escapeHtml(item.habit.title)}">${escapeHtml(item.habit.title)}</span><strong>${item.percent}%</strong></div><div class="dashboard-habit-track"><span style="width:${item.percent}%"></span></div><small>${item.completed}/${item.expected} registros · ${item.habit.frequency === "weekly" ? "Semanal" : item.habit.frequency === "weekdays" ? "Lunes a viernes" : "Diario"}</small></div>`).join("") || `<div class="empty-state compact-empty">No hay hábitos programados para esta semana.</div>`;
   }
 
   async function prepareAvatarImage(file) {
@@ -771,7 +892,11 @@
   }
 
   function renderAll() {
-    renderTopbar(); renderCategoryOptions(); renderLevel(); renderDashboard(); renderTasks(); renderHabits(); renderProgress(); renderHabitChart(); renderMissionSummary(); renderMissions(); renderMissionOptions(); renderWeeklyReview();
+    renderTopbar(); renderCategoryOptions(); renderLevel(); renderDashboard(); renderTasks(); renderHabits(); renderProgress();
+    renderHabitChartOptions();
+    renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit");
+    renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit");
+    renderMissionSummary(); renderMissions(); renderMissionOptions(); renderWeeklyReview();
   }
 
   function openDialog(id) { const dialog = document.getElementById(id); if (dialog && !dialog.open) dialog.showModal(); }
@@ -914,7 +1039,10 @@
     $("#dashboard-task-list").addEventListener("change", event => { const checkbox = event.target.closest('[data-action="toggle-task"]'); if (checkbox) { const row = checkbox.closest("[data-task-id]"); const task = state.tasks.find(item => item.id === row.dataset.taskId); if (task) toggleTask(task); } });
     $("#task-list").addEventListener("change", event => { const checkbox = event.target.closest('[data-action="toggle-task"]'); if (checkbox) { const row = checkbox.closest("[data-task-id]"); const task = state.tasks.find(item => item.id === row.dataset.taskId); if (task) toggleTask(task); } });
     $("#dashboard-habit-list").addEventListener("click", handleHabitAction);
-    $("#habit-chart-range").addEventListener("change", renderHabitChart);
+    $("#habit-chart-range").addEventListener("change", () => renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit"));
+    $("#habit-chart-habit").addEventListener("change", () => renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit"));
+    $("#dashboard-chart-range").addEventListener("change", () => renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit"));
+    $("#dashboard-chart-habit").addEventListener("change", () => renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit"));
     $("#mission-config-open").addEventListener("click", openMissionDialog);
     $("#mission-empty-action").addEventListener("click", () => { if (!state.habits.length) { setView("habits"); $("[data-open-habit]")?.click(); } else openMissionDialog(); });
     $("#mission-form").addEventListener("submit", saveMission);
