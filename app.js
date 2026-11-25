@@ -1,5 +1,5 @@
 /*
- * MI PROGRESO — lógica de la aplicación.
+ * MI PROGRESO V1.3 — lógica de la aplicación.
  * HTML define la estructura; este archivo gestiona estado, eventos,
  * validación, renderizado y comunicación con Supabase.
  */
@@ -25,20 +25,6 @@
     { level: 26, name: "Leyenda", symbol: "👑", note: "Un recorrido excepcional" },
     { level: 31, name: "Mítico", symbol: "✨", note: "Un nivel extraordinario" }
   ];
-  const AVATAR_OPTIONS = [
-    { emoji: "🧭", color: "#477f73", name: "Explorador" },
-    { emoji: "🦊", color: "#bd7548", name: "Zorro" },
-    { emoji: "🐺", color: "#64748b", name: "Lobo" },
-    { emoji: "🐉", color: "#557c57", name: "Dragón" },
-    { emoji: "🦉", color: "#8b75a7", name: "Búho" },
-    { emoji: "🐼", color: "#536b78", name: "Panda" },
-    { emoji: "🐱", color: "#b4778d", name: "Gato" },
-    { emoji: "🦄", color: "#9475a8", name: "Unicornio" },
-    { emoji: "🛡️", color: "#648b9d", name: "Guardían" },
-    { emoji: "🔥", color: "#b85c48", name: "Fénix" },
-    { emoji: "🌙", color: "#5f6e9d", name: "Lunar" },
-    { emoji: "🌳", color: "#64805b", name: "Roble" }
-  ];
   const ACHIEVEMENTS = [
     { id: "first_task", icon: "✓", title: "Primer paso", description: "Completa tu primera tarea." },
     { id: "first_habit", icon: "↻", title: "Nueva rutina", description: "Registra tu primer hábito." },
@@ -48,7 +34,9 @@
     { id: "comeback", icon: "↗", title: "Volver al camino", description: "Completa una misión después de una semana no alcanzada." },
     { id: "xp_1000", icon: "✧", title: "Primer millar", description: "Acumula 1.000 XP." }
   ];
-  const state = { user: null, categories: [], tasks: [], habits: [], habitLogs: [], xpEvents: [], missionTemplates: [], missionWeeks: [], achievements: [], view: "dashboard", loading: false };
+  const AVATAR_BUCKET = "mi-progreso-avatars";
+  const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+  const state = { user: null, categories: [], tasks: [], habits: [], habitLogs: [], xpEvents: [], missionTemplates: [], missionWeeks: [], achievements: [], weeklyReviews: [], reviewWeekStart: null, avatarUrl: null, view: "dashboard", loading: false };
 
   const todayISO = () => {
     const d = new Date(); const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
@@ -111,39 +99,69 @@
       db.from("personal_xp_events").select("*").order("created_at", { ascending: false }),
       db.from("personal_mission_templates").select("*").order("starts_on", { ascending: false }),
       db.from("personal_mission_weeks").select("*").order("week_start", { ascending: false }).limit(520),
-      db.from("personal_achievements").select("*").order("unlocked_at", { ascending: true })
+      db.from("personal_achievements").select("*").order("unlocked_at", { ascending: true }),
+      db.from("personal_weekly_reviews").select("*").order("week_start", { ascending: false }).limit(52)
     ]);
     for (const result of results) if (result.error) throw result.error;
-    [state.categories, state.tasks, state.habits, state.habitLogs, state.xpEvents, state.missionTemplates, state.missionWeeks, state.achievements] = results.map(result => result.data || []);
+    [state.categories, state.tasks, state.habits, state.habitLogs, state.xpEvents, state.missionTemplates, state.missionWeeks, state.achievements, state.weeklyReviews] = results.map(result => result.data || []);
     setCloud("Sincronizado", true);
     renderAll();
   }
 
   function setView(view) {
     state.view = view;
-    const titles = { dashboard: "Resumen", tasks: "Tareas", habits: "Hábitos", missions: "Misiones", progress: "Experiencia" };
+    const titles = { dashboard: "Resumen", tasks: "Tareas", habits: "Hábitos", missions: "Misiones", progress: "Experiencia", review: "Revisión semanal" };
     $$(".view").forEach(section => { section.hidden = section.id !== `${view}-view`; });
     $$(".nav-item").forEach(button => button.classList.toggle("active", button.dataset.view === view));
     $("#page-title").textContent = titles[view] || "Resumen";
   }
 
-  function getAvatarPreferences() {
-    const metadata = state.user?.user_metadata || {};
-    const fallback = AVATAR_OPTIONS[0];
-    return {
-      emoji: AVATAR_OPTIONS.some(item => item.emoji === metadata.avatar_emoji) ? metadata.avatar_emoji : fallback.emoji,
-      color: AVATAR_OPTIONS.find(item => item.emoji === metadata.avatar_emoji)?.color || fallback.color
-    };
+  function paintAvatar(containerSelector, imageSelector) {
+    const container = $(containerSelector);
+    const image = $(imageSelector);
+    const fallback = container?.querySelector(".avatar-default");
+    if (!container || !image || !fallback) return;
+    if (state.avatarUrl) {
+      if (image.src !== state.avatarUrl) image.src = state.avatarUrl;
+      image.onerror = () => { image.onerror = null; refreshAvatarUrl(); };
+      image.hidden = false;
+      fallback.hidden = true;
+      container.classList.add("has-avatar-image");
+    } else {
+      image.onerror = null;
+      image.removeAttribute("src");
+      image.hidden = true;
+      fallback.hidden = false;
+      container.classList.remove("has-avatar-image");
+    }
+  }
+
+  function renderAvatarImage() {
+    paintAvatar("#avatar", "#avatar-image");
+    paintAvatar("#profile-avatar-preview", "#profile-avatar-image");
+  }
+
+  async function refreshAvatarUrl() {
+    const path = state.user?.user_metadata?.avatar_path;
+    state.avatarUrl = null;
+    if (!path) { renderAvatarImage(); return; }
+    try {
+      const { data, error } = await db.storage.from(AVATAR_BUCKET).createSignedUrl(path, 86400);
+      if (error) throw error;
+      state.avatarUrl = data?.signedUrl || null;
+    } catch (error) {
+      console.warn("No se pudo cargar la imagen de perfil:", error);
+      const status = $("#avatar-save-status");
+      if (status) status.textContent = "No se pudo cargar tu imagen. Puedes volver a subirla.";
+    }
+    renderAvatarImage();
   }
 
   function renderTopbar() {
     const date = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date());
     $("#today-label").textContent = date.charAt(0).toUpperCase() + date.slice(1);
-    const prefs = getAvatarPreferences();
-    $("#avatar").textContent = prefs.emoji;
-    $("#avatar").style.background = prefs.color;
-    $("#avatar").style.color = "#ffffff";
-    $("#avatar").title = `Avatar de ${state.user?.email || "tu cuenta"}. Pulsa para personalizar.`;
+    $("#avatar").title = `Imagen de perfil de ${state.user?.email || "tu cuenta"}. Pulsa para personalizar.`;
+    renderAvatarImage();
   }
 
   function renderCategoryOptions() {
@@ -344,33 +362,79 @@
     $("#habit-chart-summary").textContent = `${periodLabel}: ${latest.percent}% · ${totalCompleted} de ${totalExpected} registros programados`;
   }
 
-  function renderAvatarPicker() {
-    const prefs = getAvatarPreferences();
-    const preview = $("#profile-avatar-preview");
-    if (preview) { preview.textContent = prefs.emoji; preview.style.background = prefs.color; }
-    const picker = $("#avatar-picker");
-    if (!picker) return;
-    picker.innerHTML = AVATAR_OPTIONS.map(option => `<button type="button" class="avatar-choice ${prefs.emoji === option.emoji ? "is-selected" : ""}" data-avatar-emoji="${option.emoji}" data-avatar-color="${option.color}" aria-label="Avatar ${option.name}" aria-pressed="${prefs.emoji === option.emoji}"><span style="background:${option.color}">${option.emoji}</span><small>${option.name}</small></button>`).join("");
+  async function prepareAvatarImage(file) {
+    if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      throw new Error("Elige una imagen PNG, JPG o WEBP.");
+    }
+    if (file.size > AVATAR_MAX_BYTES) throw new Error("La imagen supera el límite de 5 MB.");
+    if (typeof createImageBitmap !== "function") throw new Error("Tu navegador no permite procesar esta imagen. Prueba con una versión actualizada.");
+    const bitmap = await createImageBitmap(file);
+    const maxSide = 512;
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d", { alpha: true });
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/webp", 0.86));
+    if (!blob) throw new Error("No se pudo procesar la imagen seleccionada.");
+    return blob;
   }
 
-  async function saveAvatar(button) {
-    const emoji = button.dataset.avatarEmoji;
-    const color = button.dataset.avatarColor;
-    const metadata = state.user?.user_metadata || {};
-    $("#avatar-save-status").textContent = "Guardando avatar…";
-    $$("#avatar-picker button").forEach(item => { item.disabled = true; });
+  function setAvatarBusy(busy) {
+    $("#avatar-file").disabled = busy;
+    $("#avatar-remove").disabled = busy;
+    if (busy) $("#avatar-save-status").textContent = "Actualizando imagen…";
+  }
+
+  async function uploadAvatar(file) {
+    if (!file) return;
+    setAvatarBusy(true);
     try {
-      const { data, error } = await db.auth.updateUser({ data: { ...metadata, avatar_emoji: emoji, avatar_color: color } });
+      const imageBlob = await prepareAvatarImage(file);
+      const path = `${state.user.id}/avatar.webp`;
+      const oldPath = state.user?.user_metadata?.avatar_path || null;
+      const { error: uploadError } = await db.storage.from(AVATAR_BUCKET).upload(path, imageBlob, {
+        contentType: "image/webp", upsert: true, cacheControl: "3600"
+      });
+      if (uploadError) throw uploadError;
+      const metadata = { ...(state.user.user_metadata || {}), avatar_path: path, avatar_emoji: null, avatar_color: null };
+      const { data, error } = await db.auth.updateUser({ data: metadata });
       if (error) throw error;
       state.user = data.user;
-      renderTopbar(); renderAvatarPicker();
-      $("#avatar-save-status").textContent = "Avatar guardado en tu cuenta.";
+      if (oldPath && oldPath !== path) await db.storage.from(AVATAR_BUCKET).remove([oldPath]);
+      await refreshAvatarUrl();
+      $("#avatar-save-status").textContent = "Imagen de perfil guardada en tu cuenta.";
+      setNotice("Imagen de perfil actualizada.");
     } catch (error) {
-      $("#avatar-save-status").textContent = "No se pudo guardar el avatar. Inténtalo nuevamente.";
+      $("#avatar-save-status").textContent = error.message || "No se pudo guardar la imagen.";
       handleError(error);
     } finally {
-      $$("#avatar-picker button").forEach(item => { item.disabled = false; });
+      $("#avatar-file").value = "";
+      setAvatarBusy(false);
     }
+  }
+
+  async function resetAvatar() {
+    const oldPath = state.user?.user_metadata?.avatar_path || null;
+    if (!oldPath) { setNotice("Ya estás usando el avatar predeterminado.", "info"); return; }
+    setAvatarBusy(true);
+    try {
+      const metadata = { ...(state.user.user_metadata || {}), avatar_path: null, avatar_emoji: null, avatar_color: null };
+      const { data, error } = await db.auth.updateUser({ data: metadata });
+      if (error) throw error;
+      state.user = data.user;
+      state.avatarUrl = null;
+      renderAvatarImage();
+      const { error: removeError } = await db.storage.from(AVATAR_BUCKET).remove([oldPath]);
+      if (removeError) console.warn("La imagen anterior no se pudo eliminar del almacenamiento:", removeError);
+      $("#avatar-save-status").textContent = "Avatar predeterminado restaurado.";
+      setNotice("Avatar predeterminado restaurado.");
+    } catch (error) {
+      $("#avatar-save-status").textContent = "No se pudo restaurar el avatar.";
+      handleError(error);
+    } finally { setAvatarBusy(false); }
   }
 
   function renderProgress() {
@@ -379,7 +443,7 @@
     $("#progress-task-count").textContent = taskEvents.length;
     $("#progress-habit-count").textContent = state.habitLogs.length;
     $("#xp-history").innerHTML = state.xpEvents.map(event => `<div class="history-row"><div class="history-symbol ${event.source_type}">${event.source_type === "task" ? "✓" : "↻"}</div><div class="history-main"><strong>${escapeHtml(event.title_snapshot)}</strong><small>${event.source_type === "task" ? "Tarea completada" : "Hábito registrado"} · ${fmtDate(event.event_date)}</small></div><strong class="history-xp">+${event.xp_amount} XP</strong></div>`).join("") || `<div class="empty-state">Todavía no has ganado experiencia. Completa una tarea o registra un hábito.</div>`;
-    renderAvatarPicker();
+    renderAvatarImage();
   }
 
   function getMissionStreakData() {
@@ -561,8 +625,153 @@
     finally { saveButton.disabled = false; }
   }
 
+  function getReviewWeekChoices() {
+    const current = currentWeekStart();
+    return Array.from({ length: 12 }, (_, index) => {
+      const start = addDaysISO(current, -(index * 7));
+      return { start, end: addDaysISO(start, 6) };
+    });
+  }
+
+  function getMissionAdjustment() {
+    const past = [...state.missionWeeks]
+      .filter(item => item.week_start < currentWeekStart())
+      .sort((a, b) => b.week_start.localeCompare(a.week_start));
+    const lastTwo = past.slice(0, 2);
+    const hasConsecutiveWeeks = lastTwo.length >= 2 && addDaysISO(lastTwo[1].week_start, 7) === lastTwo[0].week_start;
+    const template = getActiveMissionTemplate();
+    const habit = template ? state.habits.find(item => item.id === template.habit_id) : null;
+    const max = missionExpectedMax(habit);
+    if (hasConsecutiveWeeks && lastTwo.every(item => item.is_complete) && template && template.target_count < max) {
+      return "Has alcanzado tus dos últimas misiones. Si el objetivo actual te resultó cómodo, puedes probar una repetición adicional la próxima semana. No es obligatorio aumentar la meta.";
+    }
+    if (hasConsecutiveWeeks && lastTwo.every(item => !item.is_complete)) {
+      return "Las dos últimas metas quedaron pendientes. Considera reducir el objetivo en una repetición o cambiar el momento que activa el hábito. La idea es encontrar una meta sostenible.";
+    }
+    if (lastTwo.length && lastTwo[0].is_complete) {
+      return "La última misión se cumplió. Mantén el mismo objetivo una semana más para confirmar que encaja con tu rutina antes de aumentarlo.";
+    }
+    if (lastTwo.length) {
+      return "Observa qué parte de la rutina dificultó el objetivo. Mantén la meta o ajústala ligeramente; no necesitas compensar lo que no se hizo.";
+    }
+    return "Usa esta semana como referencia. Empieza con una meta pequeña y concreta, y deja que los registros te ayuden a calibrarla.";
+  }
+
+  function getSuccessStackSuggestion() {
+    const completedWeeks = getReviewWeekChoices().filter(item => item.start < currentWeekStart()).slice(0, 3);
+    if (completedWeeks.length < 3 || !state.habits.length) {
+      return "Cuando un hábito se mantenga durante unas tres semanas, prueba añadir una acción conectada que puedas iniciar en menos de dos minutos.";
+    }
+    const stableHabit = state.habits.find(habit => completedWeeks.every(week => {
+      const createdOn = habitCreatedOn(habit);
+      const end = week.end;
+      let expected = 0, completed = 0;
+      if (habit.frequency === "weekly") {
+        if (createdOn <= end) {
+          expected = 1;
+          completed = state.habitLogs.some(log => log.habit_id === habit.id && log.period_start === week.start) ? 1 : 0;
+        }
+      } else {
+        for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
+          const day = fromLocalISO(week.start); day.setDate(day.getDate() + dayOffset);
+          const iso = toLocalISO(day);
+          const scheduled = habit.frequency === "daily" || (habit.frequency === "weekdays" && ![0, 6].includes(day.getDay()));
+          if (!scheduled || iso < createdOn) continue;
+          expected += 1;
+          if (state.habitLogs.some(log => log.habit_id === habit.id && log.completed_on === iso)) completed += 1;
+        }
+      }
+      const minimumExpected = habit.frequency === "weekly" ? 1 : habit.frequency === "weekdays" ? 3 : 5;
+      return expected >= minimumExpected && (completed / expected) >= 0.8;
+    }));
+    return stableHabit
+      ? `“${stableHabit.title}” muestra constancia durante las últimas tres semanas. Podrías conectar después una acción breve (1–2 minutos), en el mismo lugar o momento, sin añadirla como una obligación grande.`
+      : "Todavía no hay un hábito con tres semanas estables. Mantén el foco en la rutina actual antes de añadir otra conducta.";
+  }
+
+  function renderWeeklyReview() {
+    const select = $("#review-week-select");
+    if (!select) return;
+    const choices = getReviewWeekChoices();
+    if (!state.reviewWeekStart || !choices.some(item => item.start === state.reviewWeekStart)) {
+      state.reviewWeekStart = addDaysISO(currentWeekStart(), -7);
+    }
+    const previousValue = state.reviewWeekStart;
+    select.innerHTML = choices.map(item => {
+      const label = item.start === currentWeekStart() ? `Semana actual · ${formatWeek(item.start, item.end)}` : formatWeek(item.start, item.end);
+      return `<option value="${item.start}">${label}</option>`;
+    }).join("");
+    select.value = choices.some(item => item.start === previousValue) ? previousValue : choices[0].start;
+    state.reviewWeekStart = select.value;
+
+    const weekStart = state.reviewWeekStart;
+    const weekEnd = addDaysISO(weekStart, 6);
+    const series = buildHabitWeeklySeries(12).find(item => item.weekStart === weekStart) || { expected: 0, completed: 0, percent: null };
+    const tasksCompleted = state.tasks.filter(task => task.completed_at).filter(task => {
+      const day = localDateFromTimestamp(task.completed_at);
+      return day >= weekStart && day <= weekEnd;
+    }).length;
+    const xpTotal = state.xpEvents.filter(event => event.event_date >= weekStart && event.event_date <= weekEnd)
+      .reduce((sum, event) => sum + Number(event.xp_amount || 0), 0);
+    const mission = state.missionWeeks.find(item => item.week_start === weekStart) || null;
+    const currentWeek = weekStart === currentWeekStart();
+
+    $("#review-habit-rate").textContent = series.percent === null ? "—" : `${series.percent}%`;
+    $("#review-habit-detail").textContent = series.expected ? `${series.completed} de ${series.expected} registros programados` : "Sin hábitos programados";
+    $("#review-task-count").textContent = String(tasksCompleted);
+    $("#review-xp-total").textContent = `${xpTotal} XP`;
+    $("#review-mission-state").textContent = !mission ? "Sin misión" : mission.is_complete ? "Completada" : currentWeek ? "En curso" : "No alcanzada";
+    $("#review-mission-detail").textContent = mission ? `${mission.completed_count}/${mission.target_count} · ${escapeHtml(mission.title_snapshot || "Misión semanal")}` : "No había una misión configurada.";
+
+    const insightTitle = $("#review-insight-title");
+    const insightCopy = $("#review-insight-copy");
+    if (!series.expected) {
+      insightTitle.textContent = "Todavía no hay una línea de base";
+      insightCopy.textContent = "Crea un hábito pequeño y específico. Durante una o dos semanas observa qué tan fácil resulta cumplirlo antes de fijar una meta exigente.";
+    } else if (series.percent >= 80) {
+      insightTitle.textContent = "Tu rutina está encontrando su ritmo";
+      insightCopy.textContent = `Cumpliste ${series.percent}% de los registros programados. Conserva lo que te ayudó a lograrlo y evita cambiar demasiadas cosas a la vez.`;
+    } else if (series.percent >= 50) {
+      insightTitle.textContent = "Hay una base sobre la que trabajar";
+      insightCopy.textContent = `Completaste ${series.completed} de ${series.expected} registros. Revisa qué días o momentos facilitaron la actividad y cuáles la hicieron más difícil.`;
+    } else {
+      insightTitle.textContent = "La semana aporta información útil";
+      insightCopy.textContent = `Se completó el ${series.percent}% de lo programado. Prueba un disparador más claro, reduce el primer paso o ajusta la frecuencia a tu rutina real.`;
+    }
+    $("#review-adjustment-copy").textContent = getMissionAdjustment();
+    $("#review-stacking-copy").textContent = getSuccessStackSuggestion();
+    const saved = state.weeklyReviews.find(item => item.week_start === weekStart);
+    $("#review-what-worked").value = saved?.what_worked || "";
+    $("#review-obstacle").value = saved?.obstacle || "";
+    $("#review-next-adjustment").value = saved?.next_adjustment || "";
+    $("#review-save-status").textContent = saved?.updated_at ? `Última actualización: ${fmtDateTime(saved.updated_at)}` : "Todavía no has guardado apuntes para esta semana.";
+    $("#review-edit-mission").disabled = !state.habits.length;
+  }
+
+  async function saveWeeklyReview(event) {
+    event.preventDefault();
+    const button = $("#review-save-button");
+    const payload = {
+      user_id: state.user.id,
+      week_start: state.reviewWeekStart,
+      what_worked: $("#review-what-worked").value.trim(),
+      obstacle: $("#review-obstacle").value.trim(),
+      next_adjustment: $("#review-next-adjustment").value.trim()
+    };
+    button.disabled = true;
+    try {
+      const { data, error } = await db.from("personal_weekly_reviews")
+        .upsert(payload, { onConflict: "user_id,week_start" }).select().single();
+      if (error) throw error;
+      state.weeklyReviews = [data, ...state.weeklyReviews.filter(item => item.week_start !== data.week_start)];
+      $("#review-save-status").textContent = `Guardado: ${fmtDateTime(data.updated_at)}`;
+      setNotice("Revisión semanal guardada.");
+    } catch (error) { handleError(error); }
+    finally { button.disabled = false; }
+  }
+
   function renderAll() {
-    renderTopbar(); renderCategoryOptions(); renderLevel(); renderDashboard(); renderTasks(); renderHabits(); renderProgress(); renderHabitChart(); renderMissionSummary(); renderMissions(); renderMissionOptions();
+    renderTopbar(); renderCategoryOptions(); renderLevel(); renderDashboard(); renderTasks(); renderHabits(); renderProgress(); renderHabitChart(); renderMissionSummary(); renderMissions(); renderMissionOptions(); renderWeeklyReview();
   }
 
   function openDialog(id) { const dialog = document.getElementById(id); if (dialog && !dialog.open) dialog.showModal(); }
@@ -716,8 +925,12 @@
     });
     $("#mission-habit").addEventListener("change", updateMissionTargetHint);
     $("#mission-target").addEventListener("input", updateMissionTargetHint);
-    $("#avatar-picker").addEventListener("click", event => { const button = event.target.closest("[data-avatar-emoji]"); if (button) saveAvatar(button); });
+    $("#avatar-file").addEventListener("change", event => uploadAvatar(event.target.files?.[0] || null));
+    $("#avatar-remove").addEventListener("click", resetAvatar);
     $("#avatar").addEventListener("click", () => setView("progress"));
+    $("#review-week-select").addEventListener("change", event => { state.reviewWeekStart = event.target.value; renderWeeklyReview(); });
+    $("#weekly-review-form").addEventListener("submit", saveWeeklyReview);
+    $("#review-edit-mission").addEventListener("click", openMissionDialog);
     $("#logout-button").addEventListener("click", async () => { await db.auth.signOut(); location.replace("login.html"); });
     document.addEventListener("keydown", event => { if (event.key === "Escape") $$("dialog[open]").forEach(dialog => dialog.close()); });
   }
@@ -727,13 +940,14 @@
     try {
       const user = await requireSession(); if (!user) return;
       bindEvents();
+      await refreshAvatarUrl();
       await loadData();
       setView("dashboard");
       showGate("", false);
       db.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_OUT" || !session) location.replace("login.html"); });
     } catch (error) {
       console.error(error); showGate(error.message || "No se pudo preparar tu espacio.", true);
-      $("#app-gate-message").textContent = `${error.message || "Error de conexión."} Revisa que hayas ejecutado 01_personal_schema.sql en Supabase.`;
+      $("#app-gate-message").textContent = `${error.message || "Error de conexión."} Revisa que hayas aplicado la migración 01_migration_v1_3.sql en Supabase y que las tablas personales de V1.2 existan.`;
     }
   }
   initialize();

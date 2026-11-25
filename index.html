@@ -2,7 +2,7 @@
 <html lang="es" data-theme="light">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso · Hábitos y tareas</title>
+  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso · Perfil y revisión semanal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
@@ -20,11 +20,12 @@
       <button class="nav-item" data-view="habits"><span class="nav-icon">↻</span><span>Hábitos</span></button>
       <button class="nav-item" data-view="missions"><span class="nav-icon">⚑</span><span>Misiones</span></button>
       <button class="nav-item" data-view="progress"><span class="nav-icon">✧</span><span>Experiencia</span></button>
+      <button class="nav-item" data-view="review"><span class="nav-icon">▤</span><span>Revisión</span></button>
     </nav>
     <div class="sidebar-bottom"><div id="cloud-status" class="cloud-status"><i></i><span id="cloud-status-text">Conectando…</span></div><button id="logout-button" class="logout">Cerrar sesión</button></div>
   </aside>
   <main class="main">
-    <header class="topbar"><div><div class="eyebrow">ESPACIO PERSONAL</div><h1 id="page-title">Resumen</h1></div><div class="top-actions"><span id="today-label"></span><button class="theme-toggle" type="button" aria-label="Cambiar tema" aria-pressed="false"><span class="theme-icon">☾</span><span class="theme-toggle-label">Modo nocturno</span></button><button class="avatar avatar-button" id="avatar" type="button" aria-label="Abrir personalización del avatar" title="Personalizar avatar">🧭</button></div></header>
+    <header class="topbar"><div><div class="eyebrow">ESPACIO PERSONAL</div><h1 id="page-title">Resumen</h1></div><div class="top-actions"><span id="today-label"></span><button class="theme-toggle" type="button" aria-label="Cambiar tema" aria-pressed="false"><span class="theme-icon">☾</span><span class="theme-toggle-label">Modo nocturno</span></button><button class="avatar avatar-button" id="avatar" type="button" aria-label="Abrir perfil y personalizar imagen" title="Abrir perfil"><img id="avatar-image" alt="" hidden><span class="avatar-default" aria-hidden="true"></span></button></div></header>
     <div id="notice" class="notice" role="status" hidden></div>
 
     <section id="dashboard-view" class="view">
@@ -80,10 +81,35 @@
       <div class="section-heading"><div><div class="eyebrow">TU RECORRIDO</div><h2>Experiencia</h2><p class="muted">Un historial de las acciones que te ayudan a avanzar.</p></div></div>
       <div class="hero-grid progress-summary"><article class="panel"><div class="eyebrow">EXPERIENCIA ACUMULADA</div><div class="big-xp" id="progress-xp-total">0 XP</div><div class="muted" id="progress-level-caption">Nivel 1</div></article><article class="panel"><div class="eyebrow">TAREAS</div><div class="stat-number" id="progress-task-count">0</div><div class="stat-label">Completadas</div></article><article class="panel"><div class="eyebrow">HÁBITOS</div><div class="stat-number" id="progress-habit-count">0</div><div class="stat-label">Registros realizados</div></article></div>
       <div class="progress-customization-grid">
-        <article class="panel avatar-panel"><div class="avatar-profile-row"><div id="profile-avatar-preview" class="profile-avatar-large">🧭</div><div><div class="eyebrow">TU IDENTIDAD</div><h3>Elige tu avatar</h3><p class="muted">Se guarda en tu cuenta y se conserva al iniciar sesión en otro dispositivo.</p></div></div><div id="avatar-picker" class="avatar-picker" aria-label="Selector de avatar"></div><p id="avatar-save-status" class="avatar-save-status" aria-live="polite">Selecciona el avatar que te represente.</p></article>
-        <article class="panel rank-panel"><div class="panel-heading"><div><h3>Ruta de rangos</h3><p class="muted">Avanza de rango al alcanzar nuevos niveles.</p></div><span id="current-rank-label" class="rank-badge">🌱 Iniciado</span></div><div id="rank-ladder" class="rank-ladder"></div></article>
+        <article class="panel avatar-panel"><div class="avatar-profile-row"><div id="profile-avatar-preview" class="profile-avatar-large"><img id="profile-avatar-image" alt="" hidden><span class="avatar-default" aria-hidden="true"></span></div><div><div class="eyebrow">TU IDENTIDAD</div><h3>Imagen de perfil</h3><p class="muted">Usa una imagen propia o conserva el avatar predeterminado. Solo tu cuenta puede gestionar el archivo.</p></div></div>
+          <div class="avatar-upload-controls"><input id="avatar-file" class="avatar-file-input" type="file" accept="image/png,image/jpeg,image/webp"><label class="primary avatar-upload-label" for="avatar-file">Subir imagen</label><button id="avatar-remove" class="secondary" type="button">Usar avatar predeterminado</button></div>
+          <p class="avatar-upload-help">PNG, JPG o WEBP · Máximo 5 MB. La imagen se ajusta automáticamente a 512 × 512 píxeles.</p><p id="avatar-save-status" class="avatar-save-status" aria-live="polite">Avatar predeterminado activo.</p>
+        </article>
+        <article class="panel rank-panel"><div class="panel-heading"><div><h3>Ruta de rangos</h3><p class="muted">Avanza de rango al alcanzar nuevos niveles.</p></div><span id="current-rank-label" class="rank-badge">Iniciado</span></div><div id="rank-ladder" class="rank-ladder"></div></article>
       </div>
       <article class="panel history-panel"><div class="panel-heading"><h3>Historial de experiencia</h3><span class="muted">Más recientes primero</span></div><div id="xp-history" class="history-list"></div></article>
+    </section>
+
+    <section id="review-view" class="view" hidden>
+      <div class="section-heading"><div><div class="eyebrow">OBSERVAR, APRENDER Y AJUSTAR</div><h2>Revisión semanal</h2><p class="muted">Usa los datos para decidir qué mantener y qué pequeño cambio probar después.</p></div><label class="chart-range-label review-week-control" for="review-week-select">Semana analizada<select id="review-week-select" aria-label="Semana que quieres revisar"></select></label></div>
+      <div class="review-metrics-grid">
+        <article class="panel review-metric"><div class="eyebrow">CUMPLIMIENTO DE HÁBITOS</div><strong id="review-habit-rate">—</strong><span id="review-habit-detail" class="muted">Sin datos</span></article>
+        <article class="panel review-metric"><div class="eyebrow">TAREAS COMPLETADAS</div><strong id="review-task-count">0</strong><span class="muted">En la semana</span></article>
+        <article class="panel review-metric"><div class="eyebrow">EXPERIENCIA GANADA</div><strong id="review-xp-total">0 XP</strong><span class="muted">En la semana</span></article>
+        <article class="panel review-metric"><div class="eyebrow">MISIÓN PRINCIPAL</div><strong id="review-mission-state">Sin misión</strong><span id="review-mission-detail" class="muted">Puedes definir una cuando quieras.</span></article>
+      </div>
+      <div class="review-content-grid">
+        <article class="panel review-insight-panel"><div class="eyebrow">LECTURA DE LOS DATOS</div><h3 id="review-insight-title">Tu semana es un punto de partida</h3><p id="review-insight-copy" class="muted">Registra algunas acciones para descubrir patrones.</p><div class="review-adjustment"><strong>Posible ajuste para la siguiente semana</strong><p id="review-adjustment-copy" class="muted"></p><button type="button" class="secondary small" id="review-edit-mission">Revisar misión semanal</button></div><div class="review-stacking"><strong>Encadenar una nueva acción</strong><p id="review-stacking-copy" class="muted"></p></div></article>
+        <article class="panel review-reflection-panel"><div class="eyebrow">REVISIÓN PERSONAL</div><h3>¿Qué aprendiste esta semana?</h3><p class="muted">No se trata de juzgar el resultado. Identifica una señal útil para el siguiente intento.</p>
+          <form id="weekly-review-form" class="weekly-review-form">
+            <label>¿Qué funcionó bien?<textarea name="what_worked" id="review-what-worked" rows="3" maxlength="1200" placeholder="Ej. Estudiar después del café me resultó más fácil..."></textarea></label>
+            <label>¿Qué obstáculo apareció?<textarea name="obstacle" id="review-obstacle" rows="3" maxlength="1200" placeholder="Ej. Dejé la actividad para muy tarde..."></textarea></label>
+            <label>¿Qué pequeño ajuste probarás?<textarea name="next_adjustment" id="review-next-adjustment" rows="3" maxlength="1200" placeholder="Ej. Preparar el material la noche anterior..."></textarea></label>
+            <div class="weekly-review-actions"><span id="review-save-status" class="muted" aria-live="polite">Los apuntes se guardan en tu cuenta.</span><button type="submit" class="primary" id="review-save-button">Guardar revisión</button></div>
+          </form>
+        </article>
+      </div>
+      <div class="review-principle-note"><strong>La regla:</strong> conserva lo que ya funciona, cambia una sola cosa a la vez y vuelve a observar. Una semana difícil es información para ajustar, no una deuda que debas compensar.</div>
     </section>
   </main>
 </div>
