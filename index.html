@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso · Hábitos y tareas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="#dashboard"><span class="brand-mark">✦</span><span><b>MI PROGRESO</b><small>HÁBITOS Y TAREAS</small></span></a>
+    <div class="nav-label">PERSONAL</div>
+    <nav>
+      <button class="nav-item active" data-view="dashboard"><span class="nav-icon">▦</span><span>Resumen</span></button>
+      <button class="nav-item" data-view="tasks"><span class="nav-icon">✓</span><span>Tareas</span></button>
+      <button class="nav-item" data-view="habits"><span class="nav-icon">↻</span><span>Hábitos</span></button>
+      <button class="nav-item" data-view="progress"><span class="nav-icon">✧</span><span>Experiencia</span></button>
+    </nav>
+    <div class="sidebar-bottom"><div id="cloud-status" class="cloud-status"><i></i><span id="cloud-status-text">Conectando…</span></div><button id="logout-button" class="logout">Cerrar sesión</button></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div><div class="eyebrow">ESPACIO PERSONAL</div><h1 id="page-title">Resumen</h1></div><div class="top-actions"><span id="today-label"></span><button class="theme-toggle" type="button" aria-label="Cambiar tema" aria-pressed="false"><span class="theme-icon">☾</span><span class="theme-toggle-label">Modo nocturno</span></button><span class="avatar" id="avatar">U</span></div></header>
+    <div id="notice" class="notice" role="status" hidden></div>
+
+    <section id="dashboard-view" class="view">
+      <div class="hero-grid">
+        <article class="panel level-panel"><div class="level-top"><div><div class="eyebrow">TU PROGRESO</div><div class="level-number">Nivel <strong id="level-value">1</strong></div><p id="level-caption">Cada acción suma experiencia.</p></div><div class="level-emblem">✦</div></div><div class="xp-row"><strong id="xp-total">0 XP</strong><span id="xp-next">0 / 100 XP para el siguiente nivel</span></div><div class="progress-track"><div id="level-progress" class="progress-fill"></div></div></article>
+        <article class="panel stat-panel"><div class="eyebrow">HOY</div><div class="stat-number" id="today-done">0/0</div><div class="stat-label">Tareas completadas</div><div class="stat-foot" id="today-xp">+0 XP ganados hoy</div></article>
+        <article class="panel stat-panel"><div class="eyebrow">RUTINA</div><div class="stat-number" id="habit-done">0/0</div><div class="stat-label">Hábitos realizados hoy</div><div class="stat-foot" id="habit-streak">Un día a la vez.</div></article>
+      </div>
+      <div class="section-heading"><div><div class="eyebrow">PARA HOY</div><h2>Tu día en marcha</h2></div><button class="primary small" data-open-task>+ Nueva tarea</button></div>
+      <div class="dashboard-columns"><article class="panel"><div class="panel-heading"><h3>Tareas pendientes</h3><button class="text-button" data-view-link="tasks">Ver todas</button></div><div id="dashboard-task-list" class="compact-list"></div></article><article class="panel"><div class="panel-heading"><h3>Hábitos de hoy</h3><button class="text-button" data-view-link="habits">Ver hábitos</button></div><div id="dashboard-habit-list" class="compact-list"></div></article></div>
+    </section>
+
+    <section id="tasks-view" class="view" hidden>
+      <div class="section-heading"><div><div class="eyebrow">ORGANIZA TUS PENDIENTES</div><h2>Tareas personales</h2><p class="muted">Completar una tarea te entrega XP según su complejidad.</p></div><div class="action-row"><button class="secondary" id="create-category-open">+ Categoría</button><button class="primary" data-open-task>+ Crear tarea</button></div></div>
+      <div class="filter-row"><input id="task-search" type="search" placeholder="Buscar una tarea" aria-label="Buscar una tarea"><select id="task-filter" aria-label="Filtrar tareas"><option value="active">Pendientes</option><option value="completed">Completadas</option><option value="archived">Archivadas</option><option value="all">Todas las no archivadas</option></select><select id="task-category-filter" aria-label="Filtrar por categoría"><option value="all">Todas las categorías</option></select></div>
+      <div id="task-list" class="task-list"></div>
+      <div class="category-manager panel"><div class="panel-heading"><div><h3>Tus categorías</h3><p class="muted">Organiza tus tareas por área personal.</p></div></div><div class="category-strip" id="category-strip"></div></div>
+    </section>
+
+    <section id="habits-view" class="view" hidden>
+      <div class="section-heading"><div><div class="eyebrow">CONSTANCIA</div><h2>Hábitos</h2><p class="muted">Registra tus avances diarios y acumula experiencia.</p></div><button class="primary" data-open-habit>+ Crear hábito</button></div>
+      <div class="info-strip">Cada hábito puede completarse una vez por día o período, según su frecuencia. La experiencia no se duplica.</div>
+      <div id="habit-list" class="habit-grid"></div>
+    </section>
+
+    <section id="progress-view" class="view" hidden>
+      <div class="section-heading"><div><div class="eyebrow">TU RECORRIDO</div><h2>Experiencia</h2><p class="muted">Un historial de las acciones que te ayudan a avanzar.</p></div></div>
+      <div class="hero-grid progress-summary"><article class="panel"><div class="eyebrow">EXPERIENCIA ACUMULADA</div><div class="big-xp" id="progress-xp-total">0 XP</div><div class="muted" id="progress-level-caption">Nivel 1</div></article><article class="panel"><div class="eyebrow">TAREAS</div><div class="stat-number" id="progress-task-count">0</div><div class="stat-label">Completadas</div></article><article class="panel"><div class="eyebrow">HÁBITOS</div><div class="stat-number" id="progress-habit-count">0</div><div class="stat-label">Registros realizados</div></article></div>
+      <article class="panel history-panel"><div class="panel-heading"><h3>Historial de experiencia</h3><span class="muted">Más recientes primero</span></div><div id="xp-history" class="history-list"></div></article>
+    </section>
+  </main>
+</div>
+
+<dialog id="task-dialog" class="modal"><form id="task-form"><div class="modal-heading"><div><div class="eyebrow">ORGANIZA TUS PENDIENTES</div><h2 id="task-dialog-title">Crear tarea</h2></div><button type="button" class="icon-button" data-close="task-dialog" aria-label="Cerrar">✕</button></div>
+  <input type="hidden" name="id">
+  <label>Nombre de la tarea<input name="title" maxlength="120" required placeholder="Ej. Estudiar estructuras de datos"></label>
+  <label>Descripción <span class="muted">(opcional)</span><textarea name="description" rows="2" maxlength="500" placeholder="Agrega algún detalle o contexto"></textarea></label>
+  <div class="form-grid"><label>Fecha objetivo<input name="due_date" type="date"></label><label>Categoría<select name="category_id" id="task-category"><option value="">Sin categoría</option></select></label></div>
+  <label>Complejidad y experiencia<select name="difficulty" id="task-difficulty"><option value="easy">Fácil · 10 XP</option><option value="medium" selected>Media · 20 XP</option><option value="hard">Difícil · 35 XP</option><option value="epic">Muy difícil · 50 XP</option></select></label>
+  <p class="hint" id="task-xp-hint">Al completar esta tarea recibirás 20 XP. Se otorgan una sola vez.</p>
+  <div class="modal-actions"><button type="button" class="secondary" data-close="task-dialog">Cancelar</button><button type="submit" class="primary" id="task-save-button">Guardar tarea</button></div>
+</form></dialog>
+
+<dialog id="category-dialog" class="modal"><form id="category-form"><div class="modal-heading"><div><div class="eyebrow">ORGANIZA TUS TAREAS</div><h2>Nueva categoría</h2></div><button type="button" class="icon-button" data-close="category-dialog" aria-label="Cerrar">✕</button></div><label>Nombre<input name="name" maxlength="45" required placeholder="Ej. Estudio, Salud, Hogar"></label><div class="modal-actions"><button type="button" class="secondary" data-close="category-dialog">Cancelar</button><button type="submit" class="primary">Guardar categoría</button></div></form></dialog>
+
+<dialog id="habit-dialog" class="modal"><form id="habit-form"><div class="modal-heading"><div><div class="eyebrow">NUEVA RUTINA</div><h2 id="habit-dialog-title">Crear hábito</h2></div><button type="button" class="icon-button" data-close="habit-dialog" aria-label="Cerrar">✕</button></div>
+  <input type="hidden" name="id">
+  <label>Nombre del hábito<input name="title" maxlength="100" required placeholder="Ej. Leer 20 minutos"></label>
+  <label>Descripción <span class="muted">(opcional)</span><textarea name="description" rows="2" maxlength="500"></textarea></label>
+  <div class="form-grid"><label>Frecuencia<select name="frequency"><option value="daily">Todos los días</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Una vez por semana</option></select></label><label>Complejidad<select name="difficulty"><option value="easy">Fácil · 5 XP</option><option value="medium" selected>Media · 10 XP</option><option value="hard">Difícil · 15 XP</option><option value="epic">Muy difícil · 20 XP</option></select></label></div>
+  <p class="hint" id="habit-xp-hint">Al registrar este hábito recibirás 10 XP, una vez por período.</p>
+  <div class="modal-actions"><button type="button" class="secondary" data-close="habit-dialog">Cancelar</button><button type="submit" class="primary">Guardar hábito</button></div>
+</form></dialog>
+<div id="app-gate" class="app-gate" hidden><div class="panel gate-panel"><div class="spinner"></div><h2>Preparando tu espacio</h2><p id="app-gate-message">Cargando tus datos…</p></div></div>
+</body></html>
