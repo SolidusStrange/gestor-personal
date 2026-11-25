@@ -1,66 +1,73 @@
-# Mi Progreso — hábitos y tareas personales
+# Mi Progreso — actualización V1.1
 
-Aplicación web personal desarrollada con HTML, CSS y JavaScript nativo, autenticación Supabase y PostgreSQL.
+Esta actualización añade una primera capa de gamificación al gestor personal existente. Está pensada para instalarse encima de la V1.0 que ya está conectada a Supabase.
 
-## Qué contiene
+## Cambios incluidos
 
-- `index.html`: estructura del dashboard, tareas, hábitos, experiencia y formularios.
-- `styles.css`: estilos, componentes reutilizables y modo responsive.
-- `app.js`: estado de la aplicación, renderizado, CRUD y conexión con las tablas/RPC de Supabase.
-- `login.html` / `login.css`: acceso y configuración inicial de contraseña.
-- `auth.js`: inicio de sesión por invitación y configuración de contraseña.
-- `supabase-config.js`: URL del proyecto y publishable key (no contiene claves secretas).
-- `theme.js`: preferencia local de modo claro/nocturno.
-- `01_personal_schema.sql`: tablas, RLS, índices y funciones RPC de XP.
+### Progresión de experiencia
 
-## Puesta en marcha
+El XP sigue acumulándose desde `personal_xp_events`; no se reinician ni se recalculan los puntos ya obtenidos. Lo que cambia es el costo para subir de nivel:
 
-1. En Supabase SQL Editor ejecuta `01_personal_schema.sql` una sola vez.
-2. Invita las cuentas desde Authentication → Users. El registro público no se utiliza.
-3. En Authentication → URL Configuration agrega las rutas de login y redirect de tu hosting.
-4. Publica los archivos HTML, CSS y JS en GitHub Pages o ejecuta con Live Server.
-5. Abre `login.html` para autenticarte.
+- Nivel 1 → 2: 100 XP.
+- Nivel 2 → 3: 125 XP.
+- Nivel 3 → 4: 150 XP.
+- El requisito aumenta 25 XP por cada nivel nuevo.
 
-> El SQL crea tablas `personal_*` independientes. No modifica `categories`, `tasks` ni otras tablas del gestor administrativo anterior.
+Los rangos se desbloquean al alcanzar determinados niveles:
 
-## Sistema de experiencia
+| Rango | Nivel requerido | XP acumulado requerido |
+|---|---:|---:|
+| Iniciado | 1 | 0 |
+| Aprendiz | 3 | 225 |
+| Explorador | 5 | 550 |
+| Constante | 8 | 1.225 |
+| Disciplinado | 11 | 2.125 |
+| Veterano | 14 | 3.250 |
+| Élite | 17 | 4.600 |
+| Maestro | 21 | 6.750 |
+| Leyenda | 26 | 10.000 |
+| Mítico | 31 | 13.875 |
 
-### Tareas
+Los valores de XP que se entregan por completar tareas y hábitos no cambian en esta actualización.
 
-- Fácil: 10 XP
-- Media: 20 XP
-- Difícil: 35 XP
-- Muy difícil: 50 XP
+### Avatares
 
-La complejidad queda guardada en la tarea. La función PostgreSQL `complete_personal_task` calcula y concede los XP. Un índice único por usuario y clave de evento evita que desmarcar y volver a marcar una tarea genere XP adicionales.
+Se incorporan 12 avatares iniciales basados en emoji. La elección se guarda en los metadatos de la cuenta autenticada de Supabase mediante `auth.updateUser({ data })`, así que se mantiene al iniciar sesión desde otro dispositivo. Estos datos solo se utilizan para presentación visual; no se usan para permisos ni seguridad.
 
-### Hábitos
+### Dificultad visual
 
-- Fácil: 5 XP
-- Media: 10 XP
-- Difícil: 15 XP
-- Muy difícil: 20 XP
+Las tareas y hábitos muestran etiquetas de dificultad con colores consistentes:
 
-Frecuencias: diaria, lunes a viernes y semanal. La tabla `personal_habit_logs` impide registrar el mismo hábito más de una vez por período. `complete_personal_habit` concede XP de manera transaccional.
+- Fácil: verde.
+- Media: azul.
+- Difícil: naranja.
+- Muy difícil: rojo.
 
-### Niveles
+Las filas de tareas también incorporan una línea lateral del color correspondiente.
 
-Cada 100 XP acumulados se avanza un nivel. El cálculo se hace desde el total de `personal_xp_events`; el navegador no puede escribir ni modificar esos eventos directamente.
+### Gráfico de hábitos
 
-## Seguridad
+Se agrega un gráfico de línea de cumplimiento semanal con selector de 4, 8 o 12 semanas. El porcentaje compara los registros existentes con las instancias esperadas según la frecuencia configurada en cada hábito: diaria, lunes a viernes o semanal.
 
-- Todas las tablas tienen RLS activado.
-- Cada fila tiene `user_id` vinculado a `auth.users`.
-- `personal_xp_events` y `personal_habit_logs` son de solo lectura para el cliente; las funciones RPC insertan los registros.
-- No publicar `sb_secret_`, `service_role` ni la contraseña de PostgreSQL.
+El gráfico se calcula con `personal_habits` y `personal_habit_logs`. No necesita datos externos ni una nueva tabla. Como el sistema no guarda un historial de cambios de frecuencia, el gráfico histórico utiliza la frecuencia actual de cada hábito para interpretar sus semanas anteriores.
 
-## Reglas de negocio
+## Instalación en GitHub
 
-- Completar una tarea entrega XP una única vez en su vida útil. Reabrirla no revierte los XP y volver a completarla no los duplica.
-- Un hábito entrega XP una vez por día (o una vez por semana cuando su frecuencia es semanal).
-- Eliminar una tarea no elimina XP que ya se ganó; el historial conserva el nombre de la acción.
-- El tema visual se guarda en `localStorage` bajo `mi-progreso-theme`.
+Descomprime este paquete y copia estos tres archivos a la raíz del repositorio `gestor-personal`, reemplazando los existentes:
 
-## Publicación
+- `index.html`
+- `app.js`
+- `styles.css`
 
-Para GitHub Pages sube el contenido de esta carpeta a la raíz del repositorio. Configura `Site URL` como `https://TU-USUARIO.github.io/TU-REPOSITORIO/login.html` y agrega `https://TU-USUARIO.github.io/TU-REPOSITORIO/**` a las Redirect URLs de Supabase.
+Después realiza `commit` y `push` a la rama `main`. GitHub Pages publicará la actualización.
+
+**No reemplaces `supabase-config.js`.** Conserva el archivo que ya contiene la URL y la publishable key de tu proyecto. Tampoco es necesario reemplazar `auth.js`, `login.html`, `login.css` ni `theme.js`.
+
+## Supabase y base de datos
+
+- No se modifica el esquema PostgreSQL.
+- No se crean ni eliminan tablas.
+- No ejecutes nuevamente `01_personal_schema.sql`.
+- Las tareas, hábitos, registros y eventos de XP existentes se conservan.
+
+Esta versión no usa claves privadas. La publishable key permanece en el archivo de configuración existente, y las operaciones de datos siguen protegidas por las políticas RLS que ya tienes configuradas.
