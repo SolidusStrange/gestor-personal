@@ -1,5 +1,5 @@
 /*
- * MI PROGRESO V1.4 — resumen, analítica y lógica de la aplicación.
+ * MI PROGRESO V1.5 — hábitos flexibles, medallas y lógica de la aplicación.
  * HTML define la estructura; este archivo gestiona estado, eventos,
  * validación, renderizado y comunicación con Supabase.
  */
@@ -26,17 +26,27 @@
     { level: 31, name: "Mítico", symbol: "✨", note: "Un nivel extraordinario" }
   ];
   const ACHIEVEMENTS = [
-    { id: "first_task", icon: "✓", title: "Primer paso", description: "Completa tu primera tarea." },
-    { id: "first_habit", icon: "↻", title: "Nueva rutina", description: "Registra tu primer hábito." },
-    { id: "first_mission", icon: "⚑", title: "Objetivo cumplido", description: "Completa tu primera misión semanal." },
-    { id: "streak_3", icon: "✦", title: "En movimiento", description: "Completa 3 misiones semanales consecutivas." },
-    { id: "streak_5", icon: "♜", title: "Constancia", description: "Completa 5 misiones semanales consecutivas." },
-    { id: "comeback", icon: "↗", title: "Volver al camino", description: "Completa una misión después de una semana no alcanzada." },
-    { id: "xp_1000", icon: "✧", title: "Primer millar", description: "Acumula 1.000 XP." }
+    { id: "first_task", icon: "✓", title: "Primer paso", description: "Completa tu primera tarea.", kind: "achievement" },
+    { id: "first_habit", icon: "↻", title: "Nueva rutina", description: "Registra tu primer hábito.", kind: "achievement" },
+    { id: "first_mission", icon: "⚑", title: "Objetivo cumplido", description: "Completa tu primera misión semanal.", kind: "achievement" },
+    { id: "mission_bronze_3", icon: "🥉", title: "Medalla de bronce", description: "Completa 3 misiones semanales consecutivas.", kind: "medal" },
+    { id: "mission_silver_7", icon: "🥈", title: "Medalla de plata", description: "Completa 7 misiones semanales consecutivas.", kind: "medal" },
+    { id: "mission_gold_10", icon: "🥇", title: "Medalla de oro", description: "Completa 10 misiones semanales consecutivas.", kind: "medal" },
+    { id: "mission_platinum_15", icon: "🏆", title: "Medalla de platino", description: "Completa 15 misiones semanales consecutivas.", kind: "medal" },
+    { id: "mission_diamond_25", icon: "💎", title: "Medalla de diamante", description: "Completa 25 misiones semanales consecutivas.", kind: "medal" },
+    { id: "comeback", icon: "↗", title: "Volver al camino", description: "Completa una misión después de una semana no alcanzada.", kind: "achievement" },
+    { id: "xp_1000", icon: "✧", title: "Primer millar", description: "Acumula 1.000 XP.", kind: "achievement" }
+  ];
+  const MISSION_MEDALS = [
+    { id: "mission_bronze_3", threshold: 3, name: "Bronce", icon: "🥉" },
+    { id: "mission_silver_7", threshold: 7, name: "Plata", icon: "🥈" },
+    { id: "mission_gold_10", threshold: 10, name: "Oro", icon: "🥇" },
+    { id: "mission_platinum_15", threshold: 15, name: "Platino", icon: "🏆" },
+    { id: "mission_diamond_25", threshold: 25, name: "Diamante", icon: "💎" }
   ];
   const AVATAR_BUCKET = "mi-progreso-avatars";
   const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
-  const state = { user: null, categories: [], tasks: [], habits: [], habitLogs: [], xpEvents: [], missionTemplates: [], missionWeeks: [], achievements: [], weeklyReviews: [], reviewWeekStart: null, avatarUrl: null, view: "dashboard", loading: false };
+  const state = { user: null, categories: [], tasks: [], habits: [], habitSteps: [], habitLogs: [], habitLogSteps: [], xpEvents: [], missionTemplates: [], missionWeeks: [], achievements: [], weeklyReviews: [], reviewWeekStart: null, avatarUrl: null, currentLoggingHabitId: null, view: "dashboard", loading: false };
 
   const todayISO = () => {
     const d = new Date(); const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
@@ -61,7 +71,9 @@
   const getActiveMissionTemplate = () => state.missionTemplates.find(item => !item.ends_on) || null;
   const missionExpectedMax = habit => habit?.frequency === "weekly" ? 1 : habit?.frequency === "weekdays" ? 5 : 7;
   const missionTitle = habitTitle => `Completar ${habitTitle}`;
-  const isHabitDoneThisPeriod = habit => state.habitLogs.some(log => log.habit_id === habit.id && (habit.frequency === "weekly" ? log.period_start === currentWeekStart() : log.completed_on === todayISO()));
+  const isHabitDoneThisPeriod = habit => state.habitLogs.some(log => log.habit_id === habit.id && log.is_success !== false && (habit.frequency === "weekly" ? log.period_start === currentWeekStart() : log.completed_on === todayISO()));
+  const getHabitSteps = habitId => state.habitSteps.filter(step => step.habit_id === habitId).sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
+  const getMissionEligibleHabits = () => state.habits.filter(habit => (habit.habit_type || "positive") === "positive");
   const isHabitScheduledToday = habit => habit.frequency !== "weekdays" || ![0, 6].includes(new Date().getDay());
   const setNotice = (message, kind = "success") => {
     const el = $("#notice"); if (!el) return;
@@ -95,7 +107,9 @@
       db.from("personal_categories").select("*").order("sort_order").order("name"),
       db.from("personal_tasks").select("*").order("sort_order").order("created_at", { ascending: false }),
       db.from("personal_habits").select("*").eq("is_active", true).order("created_at", { ascending: false }),
+      db.from("personal_habit_steps").select("*").order("sort_order"),
       db.from("personal_habit_logs").select("*").order("completed_on", { ascending: false }),
+      db.from("personal_habit_log_steps").select("*").order("sort_order"),
       db.from("personal_xp_events").select("*").order("created_at", { ascending: false }),
       db.from("personal_mission_templates").select("*").order("starts_on", { ascending: false }),
       db.from("personal_mission_weeks").select("*").order("week_start", { ascending: false }).limit(520),
@@ -103,7 +117,7 @@
       db.from("personal_weekly_reviews").select("*").order("week_start", { ascending: false }).limit(52)
     ]);
     for (const result of results) if (result.error) throw result.error;
-    [state.categories, state.tasks, state.habits, state.habitLogs, state.xpEvents, state.missionTemplates, state.missionWeeks, state.achievements, state.weeklyReviews] = results.map(result => result.data || []);
+    [state.categories, state.tasks, state.habits, state.habitSteps, state.habitLogs, state.habitLogSteps, state.xpEvents, state.missionTemplates, state.missionWeeks, state.achievements, state.weeklyReviews] = results.map(result => result.data || []);
     setCloud("Sincronizado", true);
     renderAll();
   }
@@ -276,9 +290,9 @@
     $("#dashboard-stat-tasks-note").textContent = "Completadas y registradas";
     $("#dashboard-stat-week-tasks").textContent = weeklyTaskEvents.length.toLocaleString("es-CL");
     $("#dashboard-stat-week-tasks-note").textContent = `${fmtDate(weekStart)} – ${fmtDate(weekEnd)}`;
-    const habitEvents = state.xpEvents.filter(event => event.source_type === "habit");
-    $("#dashboard-stat-habits").textContent = habitEvents.length.toLocaleString("es-CL");
-    $("#dashboard-stat-habits-note").textContent = `${state.habits.length} hábitos activos`;
+    const habitEvents = state.xpEvents.filter(event => event.source_type === "habit" || event.source_type === "penalty");
+    $("#dashboard-stat-habits").textContent = state.habitLogs.length.toLocaleString("es-CL");
+    $("#dashboard-stat-habits-note").textContent = `${state.habits.length} hábitos activos · ${habitEvents.filter(event => event.source_type === "penalty").length} ajustes por límite`;
     $("#dashboard-stat-rate").textContent = currentHabitWeek?.expected ? `${currentHabitWeek.percent}%` : "—";
     $("#dashboard-stat-rate-note").textContent = currentHabitWeek?.expected ? `${currentHabitWeek.completed}/${currentHabitWeek.expected} registros programados` : "Sin datos todavía";
     $("#dashboard-stat-xp").textContent = `${totalXp.toLocaleString("es-CL")} XP`;
@@ -327,17 +341,58 @@
     $("#category-strip").innerHTML = state.categories.map(cat => `<div class="category-manage-row"><span class="category-dot" style="background:${escapeHtml(cat.color)}"></span><span>${escapeHtml(cat.name)}</span><span class="muted">${state.tasks.filter(t => t.category_id === cat.id && !t.archived_at).length} tareas</span><button class="icon-button danger-text" data-action="delete-category" data-category-id="${cat.id}" title="Eliminar categoría">×</button></div>`).join("") || `<div class="empty-state">Aún no tienes categorías.</div>`;
   }
 
+  function habitFrequencyLabel(habit) {
+    return habit.frequency === "weekly" ? "Semanal" : habit.frequency === "weekdays" ? "Lunes a viernes" : "Diario";
+  }
+
+  function habitTrackingLabel(habit) {
+    if (habit.habit_type === "negative") return `Límite: ${Number(habit.max_value).toLocaleString("es-CL")} ${escapeHtml(habit.unit || "minutos")}`;
+    if (habit.tracking_mode === "quantity") return `Objetivo: ${Number(habit.target_value).toLocaleString("es-CL")} ${escapeHtml(habit.unit || "unidades")}`;
+    if (habit.tracking_mode === "checklist") return `${getHabitSteps(habit.id).length} subtareas`;
+    return "Registro simple";
+  }
+
   function habitCompact(habit) {
     const done = isHabitDoneThisPeriod(habit);
-    return `<div class="habit-compact" data-habit-id="${habit.id}"><div><strong>${escapeHtml(habit.title)}</strong><small><span class="difficulty-dot difficulty-${habit.difficulty || "medium"}"></span>${habit.frequency === "weekly" ? "Una vez por semana" : habit.frequency === "weekdays" ? "Lunes a viernes" : "Todos los días"} · ${xpForHabit(habit.difficulty)} XP</small></div><button class="small ${done ? "secondary" : "primary"}" data-action="complete-habit" ${done || !isHabitScheduledToday(habit) ? "disabled" : ""}>${done ? "Hecho" : "Completar"}</button></div>`;
+    const currentPeriod = habit.frequency === "weekly" ? currentWeekStart() : todayISO();
+    const currentLog = state.habitLogs.find(log => log.habit_id === habit.id && log.period_start === currentPeriod) || null;
+    const editableRecord = habit.tracking_mode !== "simple";
+    const disabled = !isHabitScheduledToday(habit) || (done && !editableRecord);
+    const modeLabel = habit.habit_type === "negative" ? "Hábito a reducir" : habitTrackingLabel(habit);
+    const buttonLabel = done ? (editableRecord ? "Actualizar" : "Hecho") : currentLog ? "Actualizar" : "Registrar";
+    return `<div class="habit-compact difficulty-${habit.difficulty || "medium"}" data-habit-id="${habit.id}"><div><strong>${escapeHtml(habit.title)}</strong><small><span class="difficulty-dot difficulty-${habit.difficulty || "medium"}"></span>${habitFrequencyLabel(habit)} · ${modeLabel}</small></div><button class="small ${done ? "secondary" : "primary"}" data-action="record-habit" ${disabled ? "disabled" : ""}>${buttonLabel}</button></div>`;
   }
 
   function renderHabits() {
     $("#habit-list").innerHTML = state.habits.map(habit => {
       const done = isHabitDoneThisPeriod(habit);
       const logs = state.habitLogs.filter(log => log.habit_id === habit.id).length;
-      const freq = habit.frequency === "weekly" ? "Semanal" : habit.frequency === "weekdays" ? "Lunes a viernes" : "Diario";
-      return `<article class="panel habit-card" data-habit-id="${habit.id}"><div class="habit-card-top"><span class="habit-symbol">↻</span><span class="difficulty-pill difficulty-${habit.difficulty || "medium"}">${DIFFICULTY_LABEL[habit.difficulty]} · ${xpForHabit(habit.difficulty)} XP</span></div><h3>${escapeHtml(habit.title)}</h3><p class="muted">${escapeHtml(habit.description || freq)}</p><div class="habit-card-foot"><span class="muted">${freq} · ${logs} registros</span><button class="primary small" data-action="complete-habit" ${done || !isHabitScheduledToday(habit) ? "disabled" : ""}>${done ? "Completado" : "Completar hoy"}</button></div><div class="habit-card-actions"><button class="text-button" data-action="edit-habit">Editar</button><button class="text-button danger-text" data-action="delete-habit">Eliminar</button></div></article>`;
+      const freq = habitFrequencyLabel(habit);
+      const steps = getHabitSteps(habit.id);
+      const details = habit.habit_type === "negative"
+        ? `Límite máximo: ${Number(habit.max_value).toLocaleString("es-CL")} ${escapeHtml(habit.unit || "minutos")}`
+        : habit.tracking_mode === "quantity"
+          ? `Objetivo: ${Number(habit.target_value).toLocaleString("es-CL")} ${escapeHtml(habit.unit || "unidades")}`
+          : habit.tracking_mode === "checklist" ? `${steps.length} subtareas configuradas` : "Registro simple";
+      const currentPeriod = habit.frequency === "weekly" ? currentWeekStart() : todayISO();
+      const currentLog = state.habitLogs.find(log => log.habit_id === habit.id && log.period_start === currentPeriod) || null;
+      let currentProgress = "";
+      if (currentLog && habit.tracking_mode === "quantity") {
+        const actual = Number(currentLog.quantity_value || 0);
+        const target = habit.habit_type === "negative" ? Number(habit.max_value) : Number(habit.target_value);
+        const percent = target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
+        const resultLabel = habit.habit_type === "negative" ? (currentLog.is_success ? "Dentro del límite" : "Límite excedido") : (currentLog.is_success ? "Objetivo alcanzado" : "Avance parcial");
+        currentProgress = `${actual.toLocaleString("es-CL")} / ${target.toLocaleString("es-CL")} ${escapeHtml(habit.unit || "unidades")} · ${resultLabel}`;
+      } else if (currentLog && habit.tracking_mode === "checklist") {
+        const logSteps = state.habitLogSteps.filter(item => item.habit_log_id === currentLog.id);
+        const checked = logSteps.filter(item => item.is_checked).length;
+        currentProgress = `${checked}/${logSteps.length || steps.length} subtareas marcadas${currentLog.is_success ? " · Rutina completa" : " · Avance parcial"}`;
+      } else if (currentLog && currentLog.is_success) currentProgress = "Registrado para este período";
+      const kindLabel = habit.habit_type === "negative" ? "Reducir" : "Desarrollar";
+      const editableRecord = habit.tracking_mode !== "simple";
+      const recordDisabled = !isHabitScheduledToday(habit) || (done && !editableRecord);
+      const recordLabel = done ? (editableRecord ? "Actualizar" : "Completado") : currentLog ? "Actualizar" : "Registrar";
+      return `<article class="panel habit-card difficulty-${habit.difficulty || "medium"}" data-habit-id="${habit.id}"><div class="habit-card-top"><span class="habit-symbol">${habit.habit_type === "negative" ? "↓" : "↻"}</span><span class="difficulty-pill difficulty-${habit.difficulty || "medium"}">${DIFFICULTY_LABEL[habit.difficulty] || "Media"} · ${xpForHabit(habit.difficulty)} XP</span></div><div class="habit-card-kind">${kindLabel} · ${habit.tracking_mode === "quantity" ? "Cantidad" : habit.tracking_mode === "checklist" ? "Subtareas" : "Check"}</div><h3>${escapeHtml(habit.title)}</h3><p class="muted">${escapeHtml(habit.description || freq)}</p><div class="habit-card-details">${details}</div>${currentProgress ? `<div class="habit-current-progress">${escapeHtml(currentProgress)}</div>` : ""}${habit.tracking_mode === "checklist" && steps.length ? `<div class="habit-step-preview">${steps.slice(0, 4).map(step => `<span>${escapeHtml(step.title)}</span>`).join("")}${steps.length > 4 ? `<small>+${steps.length - 4} más</small>` : ""}</div>` : ""}<div class="habit-card-foot"><span class="muted">${freq} · ${logs} registros</span><button class="primary small" data-action="record-habit" ${recordDisabled ? "disabled" : ""}>${recordLabel}</button></div><div class="habit-card-actions"><button class="text-button" data-action="edit-habit">Editar</button><button class="text-button danger-text" data-action="delete-habit">Eliminar</button></div></article>`;
     }).join("") || `<div class="empty-state panel">Todavía no has creado hábitos. Empieza con uno pequeño y fácil de repetir.</div>`;
   }
 
@@ -360,7 +415,7 @@
     if (habit.frequency === "weekly") {
       if (createdOn <= weekEnd) {
         expected = 1;
-        completed = state.habitLogs.some(log => log.habit_id === habit.id && log.period_start === weekStart) ? 1 : 0;
+        completed = state.habitLogs.some(log => log.habit_id === habit.id && log.period_start === weekStart && log.is_success !== false) ? 1 : 0;
       }
       return { expected, completed, percent: expected ? Math.round((completed / expected) * 100) : null };
     }
@@ -371,7 +426,7 @@
       const scheduled = habit.frequency === "daily" || (habit.frequency === "weekdays" && ![0, 6].includes(day.getDay()));
       if (!scheduled || iso < createdOn) continue;
       expected += 1;
-      if (state.habitLogs.some(log => log.habit_id === habit.id && log.completed_on === iso)) completed += 1;
+      if (state.habitLogs.some(log => log.habit_id === habit.id && log.completed_on === iso && log.is_success !== false)) completed += 1;
     }
     return { expected, completed, percent: expected ? Math.round((completed / expected) * 100) : null };
   }
@@ -560,10 +615,15 @@
 
   function renderProgress() {
     const taskEvents = state.xpEvents.filter(e => e.source_type === "task");
-    const habitEvents = state.xpEvents.filter(e => e.source_type === "habit");
+    const habitEvents = state.xpEvents.filter(e => e.source_type === "habit" || e.source_type === "penalty");
     $("#progress-task-count").textContent = taskEvents.length;
     $("#progress-habit-count").textContent = state.habitLogs.length;
-    $("#xp-history").innerHTML = state.xpEvents.map(event => `<div class="history-row"><div class="history-symbol ${event.source_type}">${event.source_type === "task" ? "✓" : "↻"}</div><div class="history-main"><strong>${escapeHtml(event.title_snapshot)}</strong><small>${event.source_type === "task" ? "Tarea completada" : "Hábito registrado"} · ${fmtDate(event.event_date)}</small></div><strong class="history-xp">+${event.xp_amount} XP</strong></div>`).join("") || `<div class="empty-state">Todavía no has ganado experiencia. Completa una tarea o registra un hábito.</div>`;
+    $("#xp-history").innerHTML = state.xpEvents.map(event => {
+      const penalty = event.source_type === "penalty" || Number(event.xp_amount) < 0;
+      const label = event.source_type === "task" ? "Tarea completada" : penalty ? "Límite excedido" : "Hábito registrado";
+      const amount = Number(event.xp_amount || 0);
+      return `<div class="history-row"><div class="history-symbol ${penalty ? "penalty" : event.source_type}">${event.source_type === "task" ? "✓" : penalty ? "−" : "↻"}</div><div class="history-main"><strong>${escapeHtml(event.title_snapshot)}</strong><small>${label} · ${fmtDate(event.event_date)}</small></div><strong class="history-xp ${penalty ? "history-xp-penalty" : ""}">${amount > 0 ? "+" : ""}${amount} XP</strong></div>`;
+    }).join("") || `<div class="empty-state">Todavía no has ganado experiencia. Completa una tarea o registra un hábito.</div>`;
     renderAvatarImage();
   }
 
@@ -626,9 +686,9 @@
     if (!current) {
       title.textContent = "Todavía no tienes una misión";
       status.textContent = "Sin configurar"; status.className = "mission-status";
-      desc.textContent = state.habits.length ? "Elige un hábito concreto y define cuántas veces quieres realizarlo esta semana." : "Primero crea un hábito pequeño y específico. Después podrás convertirlo en tu misión semanal.";
-      progressHost.innerHTML = `<div class="mission-unconfigured">${state.habits.length ? "Tu misión aparecerá aquí cuando definas tu objetivo." : "Por ejemplo: leer 15 minutos o realizar tu rutina de movilidad."}</div>`;
-      dates.textContent = "Semana actual"; emptyAction.textContent = state.habits.length ? "Crear misión" : "Crear hábito";
+      desc.textContent = getMissionEligibleHabits().length ? "Elige un hábito positivo y define cuántas veces quieres realizarlo esta semana." : "Primero crea un hábito positivo. Los hábitos a reducir se siguen por separado y no se convierten en misiones.";
+      progressHost.innerHTML = `<div class="mission-unconfigured">${getMissionEligibleHabits().length ? "Tu misión aparecerá aquí cuando definas tu objetivo." : "Por ejemplo: leer 15 minutos o realizar tu rutina de movilidad."}</div>`;
+      dates.textContent = "Semana actual"; emptyAction.textContent = getMissionEligibleHabits().length ? "Crear misión" : "Crear hábito positivo";
     } else {
       const linkedHabit = state.habits.find(item => item.id === current.habit_id);
       title.textContent = current.title_snapshot || (linkedHabit ? missionTitle(linkedHabit.title) : "Misión semanal");
@@ -649,6 +709,13 @@
         : "Completa tu primera misión semanal para iniciar una racha.")
       : (streaks.bestStreak ? `Tu mejor racha registrada es de ${streaks.bestStreak} semanas. Configura una nueva misión para retomar el ritmo.` : "Las semanas exitosas consecutivas mantienen tu racha.");
 
+    const nextMedal = MISSION_MEDALS.find(medal => streaks.bestStreak < medal.threshold);
+    const medalProgress = nextMedal ? Math.min(100, Math.round((streaks.currentStreak / nextMedal.threshold) * 100)) : 100;
+    const medalHost = $("#mission-medal-progress");
+    if (medalHost) {
+      medalHost.innerHTML = `<div class="medal-progress-heading"><strong>${nextMedal ? `Siguiente medalla: ${nextMedal.icon} ${nextMedal.name}` : "Colección de medallas completada"}</strong><span>${nextMedal ? `${streaks.currentStreak}/${nextMedal.threshold} semanas` : "Diamante desbloqueado"}</span></div><div class="medal-progress-track"><span style="width:${medalProgress}%"></span></div><div class="medal-threshold-list">${MISSION_MEDALS.map(medal => `<span class="medal-threshold ${streaks.bestStreak >= medal.threshold ? "is-earned" : ""}" title="${medal.threshold} misiones consecutivas">${medal.icon}<small>${medal.threshold}</small></span>`).join("")}</div>`;
+    }
+
     const history = [...state.missionWeeks].sort((a, b) => b.week_start.localeCompare(a.week_start)).slice(0, 12);
     $("#mission-history").innerHTML = history.map(item => {
       const isCurrent = item.week_start === currentWeekStart();
@@ -667,8 +734,9 @@
     const select = $("#mission-habit");
     if (!select) return;
     const active = getActiveMissionTemplate();
-    select.innerHTML = state.habits.map(habit => `<option value="${habit.id}">${escapeHtml(habit.title)} · ${habit.frequency === "weekly" ? "Semanal" : habit.frequency === "weekdays" ? "Lunes a viernes" : "Diario"}</option>`).join("");
-    if (active && state.habits.some(item => item.id === active.habit_id)) select.value = active.habit_id;
+    const eligible = getMissionEligibleHabits();
+    select.innerHTML = eligible.map(habit => `<option value="${habit.id}">${escapeHtml(habit.title)} · ${habitFrequencyLabel(habit)}</option>`).join("");
+    if (active && eligible.some(item => item.id === active.habit_id)) select.value = active.habit_id;
     updateMissionTargetHint();
   }
 
@@ -688,8 +756,8 @@
   }
 
   function openMissionDialog() {
-    if (!state.habits.length) {
-      setView("habits"); setNotice("Crea primero un hábito para convertirlo en una misión.", "info");
+    if (!getMissionEligibleHabits().length) {
+      setView("habits"); setNotice("Crea primero un hábito positivo para convertirlo en una misión. Los hábitos a reducir no se usan como misión semanal.", "info");
       $("[data-open-habit]")?.click();
       return;
     }
@@ -700,7 +768,7 @@
       $("#mission-habit").value = active.habit_id;
       $("#mission-target").value = active.target_count;
     } else {
-      const selected = state.habits[0];
+      const selected = getMissionEligibleHabits()[0];
       $("#mission-habit").value = selected.id;
       $("#mission-target").value = selected.frequency === "weekly" ? 1 : selected.frequency === "weekdays" ? 3 : 4;
     }
@@ -783,14 +851,14 @@
     if (completedWeeks.length < 3 || !state.habits.length) {
       return "Cuando un hábito se mantenga durante unas tres semanas, prueba añadir una acción conectada que puedas iniciar en menos de dos minutos.";
     }
-    const stableHabit = state.habits.find(habit => completedWeeks.every(week => {
+    const stableHabit = state.habits.filter(habit => (habit.habit_type || "positive") === "positive").find(habit => completedWeeks.every(week => {
       const createdOn = habitCreatedOn(habit);
       const end = week.end;
       let expected = 0, completed = 0;
       if (habit.frequency === "weekly") {
         if (createdOn <= end) {
           expected = 1;
-          completed = state.habitLogs.some(log => log.habit_id === habit.id && log.period_start === week.start) ? 1 : 0;
+          completed = state.habitLogs.some(log => log.habit_id === habit.id && log.period_start === week.start && log.is_success !== false) ? 1 : 0;
         }
       } else {
         for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
@@ -799,7 +867,7 @@
           const scheduled = habit.frequency === "daily" || (habit.frequency === "weekdays" && ![0, 6].includes(day.getDay()));
           if (!scheduled || iso < createdOn) continue;
           expected += 1;
-          if (state.habitLogs.some(log => log.habit_id === habit.id && log.completed_on === iso)) completed += 1;
+          if (state.habitLogs.some(log => log.habit_id === habit.id && log.completed_on === iso && log.is_success !== false)) completed += 1;
         }
       }
       const minimumExpected = habit.frequency === "weekly" ? 1 : habit.frequency === "weekdays" ? 3 : 5;
@@ -916,9 +984,109 @@
     $("#habit-dialog-title").textContent = habit ? "Editar hábito" : "Crear hábito";
     form.elements.title.value = habit?.title || ""; form.elements.description.value = habit?.description || "";
     form.elements.frequency.value = habit?.frequency || "daily"; form.elements.difficulty.value = habit?.difficulty || "medium";
-    updateHabitXpHint(); openDialog("habit-dialog");
+    form.elements.habit_type.value = habit?.habit_type || "positive";
+    form.elements.tracking_mode.value = habit?.tracking_mode || "simple";
+    form.elements.target_value.value = habit?.target_value ?? 10;
+    form.elements.max_value.value = habit?.max_value ?? 60;
+    form.elements.unit.value = habit?.unit || (habit?.habit_type === "negative" ? "minutos" : "repeticiones");
+    form.elements.steps.value = getHabitSteps(habit?.id).map(step => step.title).join("\n");
+    updateHabitConfigFields(); updateHabitXpHint(); openDialog("habit-dialog");
   }
-  function updateHabitXpHint() { $("#habit-xp-hint").textContent = `Al registrar este hábito recibirás ${xpForHabit($("#habit-form").elements.difficulty.value)} XP, una vez por período.`; }
+
+  function updateHabitConfigFields() {
+    const form = $("#habit-form");
+    const type = form.elements.habit_type.value;
+    const modeSelect = form.elements.tracking_mode;
+    if (type === "negative") { modeSelect.value = "quantity"; modeSelect.disabled = true; }
+    else modeSelect.disabled = false;
+    const mode = modeSelect.value;
+    $("#habit-quantity-fields").hidden = type !== "positive" || mode !== "quantity";
+    $("#habit-negative-fields").hidden = type !== "negative";
+    $("#habit-steps-fields").hidden = type !== "positive" || mode !== "checklist";
+    $("#habit-unit-fields").hidden = mode !== "quantity";
+    $("#habit-target-value-label").textContent = "Objetivo por registro";
+    $("#habit-type-help").textContent = type === "negative"
+      ? "Registra cuánto tiempo o cuántas veces ocurrió. Mantenerte dentro del límite suma XP; superarlo aplica una penalización pequeña."
+      : "Elige una forma de registrar la actividad. Puedes empezar con un check y cambiar a cantidad o subtareas cuando lo necesites.";
+  }
+
+  function updateHabitXpHint() {
+    const form = $("#habit-form");
+    const xp = xpForHabit(form.elements.difficulty.value);
+    const type = form.elements.habit_type.value;
+    const mode = type === "negative" ? "quantity" : form.elements.tracking_mode.value;
+    const text = type === "negative"
+      ? `Mantenerte dentro del límite entrega hasta ${xp} XP. Superarlo descuenta 5 XP como máximo y nunca reduce tu saldo por debajo de 0.`
+      : mode === "quantity"
+        ? `Alcanzar el objetivo entrega ${xp} XP. Un registro parcial entrega experiencia proporcional al avance.`
+        : mode === "checklist"
+          ? `Completar todas las subtareas entrega ${xp} XP. Los avances parciales también suman experiencia proporcional.`
+          : `Al registrar este hábito recibirás ${xp} XP, una vez por período.`;
+    $("#habit-xp-hint").textContent = text;
+  }
+
+  function openHabitLog(habit) {
+    if (!habit) return;
+    state.currentLoggingHabitId = habit.id;
+    const form = $("#habit-log-form"); form.reset();
+    $("#habit-log-title").textContent = habit.title;
+    $("#habit-log-frequency").textContent = `${habitFrequencyLabel(habit)} · ${habitTrackingLabel(habit)}`;
+    const periodStart = habit.frequency === "weekly" ? currentWeekStart() : todayISO();
+    const existingLog = state.habitLogs.find(log => log.habit_id === habit.id && log.period_start === periodStart) || null;
+    $("#habit-log-simple").hidden = habit.tracking_mode !== "simple";
+    $("#habit-log-quantity").hidden = habit.tracking_mode !== "quantity";
+    $("#habit-log-checklist").hidden = habit.tracking_mode !== "checklist";
+    $("#habit-log-quantity-label").textContent = habit.habit_type === "negative" ? `Cantidad registrada (${habit.unit || "unidades"})` : `Cantidad realizada (${habit.unit || "unidades"})`;
+    $("#habit-log-quantity-value").value = existingLog?.quantity_value ?? "";
+    $("#habit-log-quantity-value").min = "0";
+    $("#habit-log-quantity-hint").textContent = habit.habit_type === "negative"
+      ? `Límite permitido: ${Number(habit.max_value).toLocaleString("es-CL")} ${habit.unit || "unidades"}. El valor puede ser igual al límite.`
+      : `Objetivo: ${Number(habit.target_value).toLocaleString("es-CL")} ${habit.unit || "unidades"}. Si haces menos, quedará registrado como avance parcial.`;
+    if (habit.tracking_mode === "checklist") {
+      const previousRows = state.habitLogSteps.filter(item => item.habit_log_id === existingLog?.id && item.is_checked);
+      const previousChecked = new Set(previousRows.map(item => item.step_id).filter(Boolean));
+      const previousTitles = new Set(previousRows.map(item => String(item.title_snapshot || "").trim().toLocaleLowerCase("es")));
+      $("#habit-log-checklist-items").innerHTML = getHabitSteps(habit.id).map(step => `<label class="habit-log-step"><input type="checkbox" value="${step.id}" ${previousChecked.has(step.id) || previousTitles.has(String(step.title).trim().toLocaleLowerCase("es")) ? "checked" : ""}><span>${escapeHtml(step.title)}</span></label>`).join("") || `<p class="muted">Este hábito no tiene subtareas configuradas. Edita el hábito para agregarlas.</p>`;
+    }
+    $("#habit-log-save").textContent = existingLog ? "Actualizar registro" : "Guardar registro";
+    openDialog("habit-log-dialog");
+  }
+
+  async function saveHabitLog(event) {
+    event.preventDefault();
+    const habit = state.habits.find(item => item.id === state.currentLoggingHabitId);
+    if (!habit) return;
+    let quantity = null;
+    let checkedStepIds = [];
+    if (habit.tracking_mode === "quantity") {
+      const raw = $("#habit-log-quantity-value").value;
+      if (raw === "" || !Number.isFinite(Number(raw)) || Number(raw) < 0) return setNotice("Ingresa una cantidad válida, igual o mayor que cero.", "error");
+      quantity = Number(raw);
+    }
+    if (habit.tracking_mode === "checklist") {
+      checkedStepIds = $$("#habit-log-checklist-items input:checked").map(input => input.value);
+      if (!getHabitSteps(habit.id).length) return setNotice("Agrega subtareas antes de registrar este hábito.", "error");
+    }
+    const button = $("#habit-log-save"); button.disabled = true;
+    try {
+      const { data, error } = await db.rpc("record_personal_habit", {
+        p_habit_id: habit.id,
+        p_local_date: todayISO(),
+        p_quantity: quantity,
+        p_checked_step_ids: checkedStepIds
+      });
+      if (error) throw error;
+      closeDialog("habit-log-dialog");
+      const delta = Number(data || 0);
+      if (delta > 0) setNotice(`Registro guardado: +${delta} XP.`);
+      else if (delta < 0) {
+        const overLimit = habit.habit_type === "negative" && quantity !== null && quantity > Number(habit.max_value);
+        setNotice(overLimit ? `Límite excedido: ${delta} XP. Puedes revisar el objetivo sin perder el registro.` : `Registro actualizado: ${delta} XP de ajuste.`, "info");
+      } else setNotice("Registro guardado. No hubo cambios de XP en esta actualización.", "info");
+      await loadData();
+    } catch (error) { handleError(error); await loadData(); }
+    finally { button.disabled = false; }
+  }
 
   async function saveTask(event) {
     event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value;
@@ -943,12 +1111,35 @@
   }
   async function saveHabit(event) {
     event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value;
-    const payload = { user_id: state.user.id, title: form.elements.title.value.trim(), description: form.elements.description.value.trim(), frequency: form.elements.frequency.value, difficulty: form.elements.difficulty.value, is_active: true };
+    const habitType = form.elements.habit_type.value;
+    const trackingMode = habitType === "negative" ? "quantity" : form.elements.tracking_mode.value;
+    const unit = form.elements.unit.value.trim() || (habitType === "negative" ? "minutos" : "unidades");
+    const targetValue = trackingMode === "quantity" && habitType === "positive" ? Number(form.elements.target_value.value) : 1;
+    const maxValue = habitType === "negative" ? Number(form.elements.max_value.value) : null;
+    const stepTitles = trackingMode === "checklist" ? [...new Set(form.elements.steps.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean))] : [];
+    if (trackingMode === "quantity" && habitType === "positive" && (!Number.isFinite(targetValue) || targetValue <= 0)) return setNotice("El objetivo debe ser mayor que cero.", "error");
+    if (habitType === "negative" && (!Number.isFinite(maxValue) || maxValue < 0)) return setNotice("El límite máximo debe ser igual o mayor que cero.", "error");
+    if (trackingMode === "checklist" && (stepTitles.length < 1 || stepTitles.length > 12)) return setNotice("Agrega entre 1 y 12 subtareas diferentes.", "error");
+    if (stepTitles.some(step => step.length > 100)) return setNotice("Cada subtarea debe tener como máximo 100 caracteres.", "error");
+    const payload = {
+      user_id: state.user.id, title: form.elements.title.value.trim(), description: form.elements.description.value.trim(),
+      frequency: form.elements.frequency.value, difficulty: form.elements.difficulty.value, is_active: true,
+      habit_type: habitType, tracking_mode: trackingMode, target_value: targetValue, max_value: maxValue,
+      unit, penalty_xp: 5
+    };
+    if (!payload.title) return;
+    const saveButton = form.querySelector('button[type="submit"]'); saveButton.disabled = true;
     try {
-      const result = id ? await db.from("personal_habits").update(payload).eq("id", id).select().single() : await db.from("personal_habits").insert(payload).select().single();
+      const result = id
+        ? await db.from("personal_habits").update(payload).eq("id", id).select().single()
+        : await db.from("personal_habits").insert(payload).select().single();
       if (result.error) throw result.error;
+      const savedHabit = result.data;
+      const { error: stepsError } = await db.rpc("replace_personal_habit_steps", { p_habit_id: savedHabit.id, p_titles: stepTitles });
+      if (stepsError) throw stepsError;
       closeDialog("habit-dialog"); setNotice(id ? "Hábito actualizado." : "Hábito creado."); await loadData();
     } catch (error) { handleError(error); }
+    finally { saveButton.disabled = false; }
   }
 
   async function toggleTask(task) {
@@ -965,14 +1156,7 @@
       await loadData();
     } catch (error) { handleError(error); await loadData(); }
   }
-  async function completeHabit(habit) {
-    try {
-      const { data, error } = await db.rpc("complete_personal_habit", { p_habit_id: habit.id, p_local_date: todayISO() });
-      if (error) throw error;
-      setNotice(data > 0 ? `Hábito registrado: +${data} XP.` : "Este hábito ya fue registrado en el período actual.");
-      await loadData();
-    } catch (error) { handleError(error); }
-  }
+  function completeHabit(habit) { openHabitLog(habit); }
   async function archiveTask(task) {
     try { const { error } = await db.from("personal_tasks").update({ archived_at: new Date().toISOString() }).eq("id", task.id); if (error) throw error; setNotice("Tarea archivada."); await loadData(); }
     catch (error) { handleError(error); }
@@ -1013,7 +1197,7 @@
     const button = event.target.closest("[data-action]"); const card = event.target.closest("[data-habit-id]");
     if (!button || !card) return;
     const habit = state.habits.find(item => item.id === card.dataset.habitId); if (!habit) return;
-    if (button.dataset.action === "complete-habit") completeHabit(habit);
+    if (button.dataset.action === "complete-habit" || button.dataset.action === "record-habit") completeHabit(habit);
     if (button.dataset.action === "edit-habit") openHabit(habit);
     if (button.dataset.action === "delete-habit") deleteHabit(habit);
   }
@@ -1028,8 +1212,11 @@
     $("#task-form").addEventListener("submit", saveTask);
     $("#category-form").addEventListener("submit", saveCategory);
     $("#habit-form").addEventListener("submit", saveHabit);
+    $("#habit-log-form").addEventListener("submit", saveHabitLog);
     $("#task-difficulty").addEventListener("change", updateTaskXpHint);
     $("#habit-form").elements.difficulty.addEventListener("change", updateHabitXpHint);
+    $("#habit-form").elements.habit_type.addEventListener("change", () => { updateHabitConfigFields(); updateHabitXpHint(); });
+    $("#habit-form").elements.tracking_mode.addEventListener("change", () => { updateHabitConfigFields(); updateHabitXpHint(); });
     $("#task-search").addEventListener("input", renderTasks);
     $("#task-filter").addEventListener("change", renderTasks);
     $("#task-category-filter").addEventListener("change", renderTasks);
@@ -1075,7 +1262,7 @@
       db.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_OUT" || !session) location.replace("login.html"); });
     } catch (error) {
       console.error(error); showGate(error.message || "No se pudo preparar tu espacio.", true);
-      $("#app-gate-message").textContent = `${error.message || "Error de conexión."} Revisa que hayas aplicado la migración 01_migration_v1_3.sql en Supabase y que las tablas personales de V1.2 existan.`;
+      $("#app-gate-message").textContent = `${error.message || "Error de conexión."} Revisa que hayas aplicado la migración 01_migration_v1_5.sql y que las tablas personales de V1.2/V1.3 existan.`;
     }
   }
   initialize();

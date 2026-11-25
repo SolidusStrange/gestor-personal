@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.4 · Resumen y estadísticas</title>
+  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.5 · Hábitos flexibles y medallas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.4">
+  <link rel="stylesheet" href="styles.css?v=1.5">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.4" defer></script>
+  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.5" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -92,7 +92,8 @@
 
     <section id="habits-view" class="view" hidden>
       <div class="section-heading"><div><div class="eyebrow">CONSTANCIA</div><h2>Hábitos</h2><p class="muted">Registra tus avances diarios y acumula experiencia.</p></div><button class="primary" data-open-habit>+ Crear hábito</button></div>
-      <div class="info-strip">Cada hábito puede completarse una vez por día o período, según su frecuencia. La experiencia no se duplica.</div>
+      <div class="info-strip">Puedes crear hábitos positivos o hábitos que quieras reducir. Cada uno admite un check, subtareas o registro de cantidad. La dificultad colorea el bloque completo: verde (fácil) a rojo (muy difícil).</div>
+      <div class="difficulty-legend" aria-label="Leyenda de dificultad"><span><i class="difficulty-dot difficulty-easy"></i>Fácil</span><span><i class="difficulty-dot difficulty-medium"></i>Media</span><span><i class="difficulty-dot difficulty-hard"></i>Difícil</span><span><i class="difficulty-dot difficulty-epic"></i>Muy difícil</span></div>
       <div id="habit-list" class="habit-grid"></div>
       <article class="panel habit-chart-panel">
         <div class="panel-heading habit-chart-heading"><div><h3>Cumplimiento de hábitos</h3><p class="muted">Evolución semanal de los hábitos que tenías programados.</p></div>
@@ -108,7 +109,7 @@
       <div class="section-heading"><div><div class="eyebrow">CONSTANCIA, NO PERFECCIÓN</div><h2>Misiones y logros</h2><p class="muted">Una misión concreta por semana. Puedes observar tu punto de partida antes de fijar una meta; fallar un día no invalida la semana.</p></div><button class="primary" id="mission-config-open">Configurar misión</button></div>
       <div class="mission-overview-grid">
         <article class="panel mission-current-panel"><div class="panel-heading"><div><div class="eyebrow">OBJETIVO DE ESTA SEMANA</div><h3 id="mission-current-title">Todavía no tienes una misión</h3></div><span id="mission-current-state" class="mission-status">Sin configurar</span></div><p id="mission-current-description" class="muted">Elige un hábito concreto y define cuántas veces quieres realizarlo esta semana.</p><div id="mission-current-progress" class="mission-current-progress"></div><div class="mission-bottom-row"><span id="mission-current-dates" class="muted"></span><button class="secondary small" id="mission-empty-action">Crear misión</button></div></article>
-        <article class="panel streak-panel"><div class="eyebrow">TU CONSTANCIA</div><div class="streak-numbers"><div><strong id="mission-current-streak">0</strong><span>Racha actual</span></div><div><strong id="mission-best-streak">0</strong><span>Mejor racha</span></div></div><p id="mission-streak-caption" class="muted">Las semanas exitosas consecutivas mantienen tu racha.</p></article>
+        <article class="panel streak-panel"><div class="eyebrow">TU CONSTANCIA</div><div class="streak-numbers"><div><strong id="mission-current-streak">0</strong><span>Racha actual</span></div><div><strong id="mission-best-streak">0</strong><span>Mejor racha</span></div></div><p id="mission-streak-caption" class="muted">Las semanas exitosas consecutivas mantienen tu racha.</p><div id="mission-medal-progress" class="mission-medal-progress" aria-live="polite"></div></article>
       </div>
       <article class="panel mission-history-panel"><div class="panel-heading"><div><h3>Historial de misiones</h3><p class="muted">Revisa tus semanas y aprende de tu propio ritmo.</p></div><span class="muted">Más recientes primero</span></div><div id="mission-history" class="mission-history-list"></div></article>
       <article class="panel achievement-panel"><div class="panel-heading"><div><h3>Colección de logros</h3><p class="muted">Insignias que reconocen hitos reales. No se pierden al fallar una semana.</p></div><span id="achievement-count" class="achievement-count">0 / 0</span></div><div id="achievement-grid" class="achievement-grid"></div></article>
@@ -164,13 +165,28 @@
 
 <dialog id="category-dialog" class="modal"><form id="category-form"><div class="modal-heading"><div><div class="eyebrow">ORGANIZA TUS TAREAS</div><h2>Nueva categoría</h2></div><button type="button" class="icon-button" data-close="category-dialog" aria-label="Cerrar">✕</button></div><label>Nombre<input name="name" maxlength="45" required placeholder="Ej. Estudio, Salud, Hogar"></label><div class="modal-actions"><button type="button" class="secondary" data-close="category-dialog">Cancelar</button><button type="submit" class="primary">Guardar categoría</button></div></form></dialog>
 
-<dialog id="habit-dialog" class="modal"><form id="habit-form"><div class="modal-heading"><div><div class="eyebrow">NUEVA RUTINA</div><h2 id="habit-dialog-title">Crear hábito</h2></div><button type="button" class="icon-button" data-close="habit-dialog" aria-label="Cerrar">✕</button></div>
+<dialog id="habit-dialog" class="modal"><form id="habit-form"><div class="modal-heading"><div><div class="eyebrow">DISEÑA TU RUTINA</div><h2 id="habit-dialog-title">Crear hábito</h2></div><button type="button" class="icon-button" data-close="habit-dialog" aria-label="Cerrar">✕</button></div>
   <input type="hidden" name="id">
-  <label>Nombre del hábito<input name="title" maxlength="100" required placeholder="Ej. Leer 20 minutos"></label>
+  <label>Nombre del hábito<input name="title" maxlength="100" required placeholder="Ej. Rutina de ejercicio"></label>
   <label>Descripción <span class="muted">(opcional)</span><textarea name="description" rows="2" maxlength="500"></textarea></label>
-  <div class="form-grid"><label>Frecuencia<select name="frequency"><option value="daily">Todos los días</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Una vez por semana</option></select></label><label>Complejidad<select name="difficulty"><option value="easy">Fácil · 5 XP</option><option value="medium" selected>Media · 10 XP</option><option value="hard">Difícil · 15 XP</option><option value="epic">Muy difícil · 20 XP</option></select></label></div>
+  <div class="form-grid"><label>Tipo de hábito<select name="habit_type" id="habit-type"><option value="positive">Hábito que quiero desarrollar</option><option value="negative">Hábito que quiero reducir</option></select></label><label>Frecuencia<select name="frequency"><option value="daily">Todos los días</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Una vez por semana</option></select></label></div>
+  <div class="form-grid"><label>Forma de registro<select name="tracking_mode" id="habit-tracking-mode"><option value="simple">Un check</option><option value="checklist">Subtareas</option><option value="quantity">Cantidad</option></select></label><label>Complejidad<select name="difficulty"><option value="easy">Fácil · 5 XP</option><option value="medium" selected>Media · 10 XP</option><option value="hard">Difícil · 15 XP</option><option value="epic">Muy difícil · 20 XP</option></select></label></div>
+  <p class="hint" id="habit-type-help">Elige una forma de registrar la actividad. Puedes empezar con un check y cambiar a cantidad o subtareas cuando lo necesites.</p>
+  <div id="habit-quantity-fields" class="habit-config-fields" hidden><label id="habit-target-value-label">Objetivo por registro<input name="target_value" type="number" min="0.01" step="0.01" value="10"></label></div>
+  <div id="habit-negative-fields" class="habit-config-fields" hidden><label>Límite máximo permitido<input name="max_value" type="number" min="0" step="0.01" value="60"><small class="muted">El límite se considera permitido. Superarlo genera una penalización de 5 XP como máximo.</small></label></div>
+  <div id="habit-unit-fields" class="habit-config-fields" hidden><label>Unidad de medida<input name="unit" maxlength="24" value="repeticiones" placeholder="repeticiones, minutos, páginas..."></label></div>
+  <div id="habit-steps-fields" class="habit-config-fields" hidden><label>Subtareas <span class="muted">(una por línea, máximo 12)</span><textarea name="steps" id="habit-steps" rows="5" maxlength="900" placeholder="Flexiones
+Sentadillas
+Plancha"></textarea></label></div>
   <p class="hint" id="habit-xp-hint">Al registrar este hábito recibirás 10 XP, una vez por período.</p>
   <div class="modal-actions"><button type="button" class="secondary" data-close="habit-dialog">Cancelar</button><button type="submit" class="primary">Guardar hábito</button></div>
+</form></dialog>
+
+<dialog id="habit-log-dialog" class="modal"><form id="habit-log-form"><div class="modal-heading"><div><div class="eyebrow">REGISTRO DE HOY</div><h2 id="habit-log-title">Registrar hábito</h2><p id="habit-log-frequency" class="muted"></p></div><button type="button" class="icon-button" data-close="habit-log-dialog" aria-label="Cerrar">✕</button></div>
+  <div id="habit-log-simple" class="habit-log-simple" hidden><p>Confirma que realizaste esta actividad. El registro se guardará para el período actual.</p></div>
+  <div id="habit-log-quantity" hidden><label id="habit-log-quantity-label">Cantidad realizada<input id="habit-log-quantity-value" type="number" min="0" step="0.01" required></label><p id="habit-log-quantity-hint" class="hint"></p></div>
+  <div id="habit-log-checklist" hidden><strong>Marca las subtareas realizadas</strong><div id="habit-log-checklist-items" class="habit-log-checklist-items"></div><p class="hint">Puedes guardar un avance parcial. Completar todas las subtareas completa el hábito y cuenta para la misión.</p></div>
+  <div class="modal-actions"><button type="button" class="secondary" data-close="habit-log-dialog">Cancelar</button><button type="submit" class="primary" id="habit-log-save">Guardar registro</button></div>
 </form></dialog>
 <dialog id="mission-dialog" class="modal"><form id="mission-form"><div class="modal-heading"><div><div class="eyebrow">PLANIFICACIÓN FLEXIBLE</div><h2>Configurar misión semanal</h2></div><button type="button" class="icon-button" data-close="mission-dialog" aria-label="Cerrar">✕</button></div>
   <label>Hábito principal<select name="habit_id" id="mission-habit" required></select></label>
