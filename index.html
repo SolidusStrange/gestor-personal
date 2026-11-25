@@ -18,6 +18,7 @@
       <button class="nav-item active" data-view="dashboard"><span class="nav-icon">▦</span><span>Resumen</span></button>
       <button class="nav-item" data-view="tasks"><span class="nav-icon">✓</span><span>Tareas</span></button>
       <button class="nav-item" data-view="habits"><span class="nav-icon">↻</span><span>Hábitos</span></button>
+      <button class="nav-item" data-view="missions"><span class="nav-icon">⚑</span><span>Misiones</span></button>
       <button class="nav-item" data-view="progress"><span class="nav-icon">✧</span><span>Experiencia</span></button>
     </nav>
     <div class="sidebar-bottom"><div id="cloud-status" class="cloud-status"><i></i><span id="cloud-status-text">Conectando…</span></div><button id="logout-button" class="logout">Cerrar sesión</button></div>
@@ -32,6 +33,10 @@
         <article class="panel stat-panel"><div class="eyebrow">HOY</div><div class="stat-number" id="today-done">0/0</div><div class="stat-label">Tareas completadas</div><div class="stat-foot" id="today-xp">+0 XP ganados hoy</div></article>
         <article class="panel stat-panel"><div class="eyebrow">RUTINA</div><div class="stat-number" id="habit-done">0/0</div><div class="stat-label">Hábitos realizados hoy</div><div class="stat-foot" id="habit-streak">Un día a la vez.</div></article>
       </div>
+      <article class="panel dashboard-mission-panel" id="dashboard-mission-panel">
+        <div class="panel-heading"><div><div class="eyebrow">TU OBJETIVO PRINCIPAL</div><h3>Misión semanal</h3></div><button class="text-button" data-view-link="missions">Ver misiones</button></div>
+        <div id="dashboard-mission-content" class="mission-dashboard-content"></div>
+      </article>
       <div class="section-heading"><div><div class="eyebrow">PARA HOY</div><h2>Tu día en marcha</h2></div><button class="primary small" data-open-task>+ Nueva tarea</button></div>
       <div class="dashboard-columns"><article class="panel"><div class="panel-heading"><h3>Tareas pendientes</h3><button class="text-button" data-view-link="tasks">Ver todas</button></div><div id="dashboard-task-list" class="compact-list"></div></article><article class="panel"><div class="panel-heading"><h3>Hábitos de hoy</h3><button class="text-button" data-view-link="habits">Ver hábitos</button></div><div id="dashboard-habit-list" class="compact-list"></div></article></div>
     </section>
@@ -58,6 +63,17 @@
         <div id="habit-chart" class="habit-chart" aria-live="polite"></div>
         <div class="chart-footnote">El porcentaje considera la frecuencia de cada hábito: diaria, de lunes a viernes o semanal.</div>
       </article>
+    </section>
+
+    <section id="missions-view" class="view" hidden>
+      <div class="section-heading"><div><div class="eyebrow">CONSTANCIA, NO PERFECCIÓN</div><h2>Misiones y logros</h2><p class="muted">Una misión concreta por semana. Puedes observar tu punto de partida antes de fijar una meta; fallar un día no invalida la semana.</p></div><button class="primary" id="mission-config-open">Configurar misión</button></div>
+      <div class="mission-overview-grid">
+        <article class="panel mission-current-panel"><div class="panel-heading"><div><div class="eyebrow">OBJETIVO DE ESTA SEMANA</div><h3 id="mission-current-title">Todavía no tienes una misión</h3></div><span id="mission-current-state" class="mission-status">Sin configurar</span></div><p id="mission-current-description" class="muted">Elige un hábito concreto y define cuántas veces quieres realizarlo esta semana.</p><div id="mission-current-progress" class="mission-current-progress"></div><div class="mission-bottom-row"><span id="mission-current-dates" class="muted"></span><button class="secondary small" id="mission-empty-action">Crear misión</button></div></article>
+        <article class="panel streak-panel"><div class="eyebrow">TU CONSTANCIA</div><div class="streak-numbers"><div><strong id="mission-current-streak">0</strong><span>Racha actual</span></div><div><strong id="mission-best-streak">0</strong><span>Mejor racha</span></div></div><p id="mission-streak-caption" class="muted">Las semanas exitosas consecutivas mantienen tu racha.</p></article>
+      </div>
+      <article class="panel mission-history-panel"><div class="panel-heading"><div><h3>Historial de misiones</h3><p class="muted">Revisa tus semanas y aprende de tu propio ritmo.</p></div><span class="muted">Más recientes primero</span></div><div id="mission-history" class="mission-history-list"></div></article>
+      <article class="panel achievement-panel"><div class="panel-heading"><div><h3>Colección de logros</h3><p class="muted">Insignias que reconocen hitos reales. No se pierden al fallar una semana.</p></div><span id="achievement-count" class="achievement-count">0 / 0</span></div><div id="achievement-grid" class="achievement-grid"></div></article>
+      <div class="mission-principle-note"><strong>Regla de esta aventura:</strong> las misiones reconocen la constancia, no la perfección. No pierdes XP, rangos ni logros por descansar o necesitar empezar de nuevo.</div>
     </section>
 
     <section id="progress-view" class="view" hidden>
@@ -91,6 +107,13 @@
   <div class="form-grid"><label>Frecuencia<select name="frequency"><option value="daily">Todos los días</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Una vez por semana</option></select></label><label>Complejidad<select name="difficulty"><option value="easy">Fácil · 5 XP</option><option value="medium" selected>Media · 10 XP</option><option value="hard">Difícil · 15 XP</option><option value="epic">Muy difícil · 20 XP</option></select></label></div>
   <p class="hint" id="habit-xp-hint">Al registrar este hábito recibirás 10 XP, una vez por período.</p>
   <div class="modal-actions"><button type="button" class="secondary" data-close="habit-dialog">Cancelar</button><button type="submit" class="primary">Guardar hábito</button></div>
+</form></dialog>
+<dialog id="mission-dialog" class="modal"><form id="mission-form"><div class="modal-heading"><div><div class="eyebrow">PLANIFICACIÓN FLEXIBLE</div><h2>Configurar misión semanal</h2></div><button type="button" class="icon-button" data-close="mission-dialog" aria-label="Cerrar">✕</button></div>
+  <label>Hábito principal<select name="habit_id" id="mission-habit" required></select></label>
+  <label>Meta semanal<input name="target_count" id="mission-target" type="number" min="1" max="7" value="4" step="1" required></label>
+  <p class="hint" id="mission-target-hint">Define cuántas veces quieres realizar esta actividad durante la semana.</p>
+  <div class="mission-dialog-note">El objetivo se mide de lunes a domingo. Los días de descanso están permitidos. Si ya tienes una misión en curso, los cambios se aplicarán a partir de la próxima semana para no borrar tu avance.</div>
+  <div class="modal-actions"><button type="button" class="secondary" data-close="mission-dialog">Cancelar</button><button type="submit" class="primary" id="mission-save-button">Guardar misión</button></div>
 </form></dialog>
 <div id="app-gate" class="app-gate" hidden><div class="panel gate-panel"><div class="spinner"></div><h2>Preparando tu espacio</h2><p id="app-gate-message">Cargando tus datos…</p></div></div>
 </body></html>

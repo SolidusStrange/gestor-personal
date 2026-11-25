@@ -39,7 +39,16 @@
     { emoji: "🌙", color: "#5f6e9d", name: "Lunar" },
     { emoji: "🌳", color: "#64805b", name: "Roble" }
   ];
-  const state = { user: null, categories: [], tasks: [], habits: [], habitLogs: [], xpEvents: [], view: "dashboard", loading: false };
+  const ACHIEVEMENTS = [
+    { id: "first_task", icon: "✓", title: "Primer paso", description: "Completa tu primera tarea." },
+    { id: "first_habit", icon: "↻", title: "Nueva rutina", description: "Registra tu primer hábito." },
+    { id: "first_mission", icon: "⚑", title: "Objetivo cumplido", description: "Completa tu primera misión semanal." },
+    { id: "streak_3", icon: "✦", title: "En movimiento", description: "Completa 3 misiones semanales consecutivas." },
+    { id: "streak_5", icon: "♜", title: "Constancia", description: "Completa 5 misiones semanales consecutivas." },
+    { id: "comeback", icon: "↗", title: "Volver al camino", description: "Completa una misión después de una semana no alcanzada." },
+    { id: "xp_1000", icon: "✧", title: "Primer millar", description: "Acumula 1.000 XP." }
+  ];
+  const state = { user: null, categories: [], tasks: [], habits: [], habitLogs: [], xpEvents: [], missionTemplates: [], missionWeeks: [], achievements: [], view: "dashboard", loading: false };
 
   const todayISO = () => {
     const d = new Date(); const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
@@ -58,6 +67,12 @@
   const toLocalISO = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   const fromLocalISO = value => { const [y, m, d] = String(value).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
   const currentWeekStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return toLocalISO(d); };
+  const addDaysISO = (value, days) => { const d = fromLocalISO(value); d.setDate(d.getDate() + days); return toLocalISO(d); };
+  const formatWeek = (start, end) => `${fmtDate(start)} – ${fmtDate(end)}`;
+  const getCurrentMission = () => state.missionWeeks.find(item => item.week_start === currentWeekStart()) || null;
+  const getActiveMissionTemplate = () => state.missionTemplates.find(item => !item.ends_on) || null;
+  const missionExpectedMax = habit => habit?.frequency === "weekly" ? 1 : habit?.frequency === "weekdays" ? 5 : 7;
+  const missionTitle = habitTitle => `Completar ${habitTitle}`;
   const isHabitDoneThisPeriod = habit => state.habitLogs.some(log => log.habit_id === habit.id && (habit.frequency === "weekly" ? log.period_start === currentWeekStart() : log.completed_on === todayISO()));
   const isHabitScheduledToday = habit => habit.frequency !== "weekdays" || ![0, 6].includes(new Date().getDay());
   const setNotice = (message, kind = "success") => {
@@ -84,22 +99,29 @@
 
   async function loadData() {
     setCloud("Sincronizando…", true);
+    const { error: syncError } = await db.rpc("sync_personal_mission_weeks", { p_local_date: todayISO() });
+    if (syncError) throw syncError;
+    const { error: achievementSyncError } = await db.rpc("sync_personal_achievements");
+    if (achievementSyncError) throw achievementSyncError;
     const results = await Promise.all([
       db.from("personal_categories").select("*").order("sort_order").order("name"),
       db.from("personal_tasks").select("*").order("sort_order").order("created_at", { ascending: false }),
       db.from("personal_habits").select("*").eq("is_active", true).order("created_at", { ascending: false }),
       db.from("personal_habit_logs").select("*").order("completed_on", { ascending: false }),
-      db.from("personal_xp_events").select("*").order("created_at", { ascending: false })
+      db.from("personal_xp_events").select("*").order("created_at", { ascending: false }),
+      db.from("personal_mission_templates").select("*").order("starts_on", { ascending: false }),
+      db.from("personal_mission_weeks").select("*").order("week_start", { ascending: false }).limit(520),
+      db.from("personal_achievements").select("*").order("unlocked_at", { ascending: true })
     ]);
     for (const result of results) if (result.error) throw result.error;
-    [state.categories, state.tasks, state.habits, state.habitLogs, state.xpEvents] = results.map(result => result.data || []);
+    [state.categories, state.tasks, state.habits, state.habitLogs, state.xpEvents, state.missionTemplates, state.missionWeeks, state.achievements] = results.map(result => result.data || []);
     setCloud("Sincronizado", true);
     renderAll();
   }
 
   function setView(view) {
     state.view = view;
-    const titles = { dashboard: "Resumen", tasks: "Tareas", habits: "Hábitos", progress: "Experiencia" };
+    const titles = { dashboard: "Resumen", tasks: "Tareas", habits: "Hábitos", missions: "Misiones", progress: "Experiencia" };
     $$(".view").forEach(section => { section.hidden = section.id !== `${view}-view`; });
     $$(".nav-item").forEach(button => button.classList.toggle("active", button.dataset.view === view));
     $("#page-title").textContent = titles[view] || "Resumen";
@@ -360,8 +382,187 @@
     renderAvatarPicker();
   }
 
+  function getMissionStreakData() {
+    const byWeek = new Map(state.missionWeeks.map(item => [item.week_start, item]));
+    const currentWeek = currentWeekStart();
+    const current = byWeek.get(currentWeek);
+    // La semana en curso aún no rompe una racha; se evalúa al finalizar el domingo.
+    let cursor = current?.is_complete ? currentWeek : addDaysISO(currentWeek, -7);
+    let currentStreak = 0;
+    if (!getActiveMissionTemplate()) cursor = null;
+    while (cursor && byWeek.get(cursor)?.is_complete) {
+      currentStreak += 1;
+      cursor = addDaysISO(cursor, -7);
+    }
+    const sorted = [...state.missionWeeks].sort((a, b) => a.week_start.localeCompare(b.week_start));
+    let bestStreak = 0, run = 0, previous = null;
+    for (const week of sorted) {
+      if (week.is_complete) {
+        run = previous && addDaysISO(previous.week_start, 7) === week.week_start ? run + 1 : 1;
+        bestStreak = Math.max(bestStreak, run);
+      } else run = 0;
+      previous = week;
+    }
+    return { currentStreak, bestStreak };
+  }
+
+  function getAchievements() {
+    const unlocked = new Map(state.achievements.map(item => [item.achievement_key, item.unlocked_at]));
+    return ACHIEVEMENTS.map(item => ({ ...item, unlocked: unlocked.has(item.id), unlockedAt: unlocked.get(item.id) || null }));
+  }
+
+  function renderMissionProgressMarkup(mission, compact = false) {
+    const habit = state.habits.find(item => item.id === mission.habit_id);
+    const title = mission.title_snapshot || (habit ? missionTitle(habit.title) : "Misión semanal");
+    const progress = Math.min(Number(mission.completed_count || 0), Number(mission.target_count || 1));
+    const target = Number(mission.target_count || 1);
+    const percent = Math.min(100, Math.round((progress / target) * 100));
+    return `<div class="mission-title-row"><strong>${escapeHtml(title)}</strong><span class="mission-progress-count">${progress}/${target}</span></div>
+      <div class="mission-progress-track"><div class="mission-progress-fill" style="width:${percent}%"></div></div>
+      <div class="mission-progress-meta"><span>${percent}% completado</span><span>${mission.is_complete ? "Objetivo alcanzado" : `${Math.max(0, target-progress)} acciones restantes`}</span></div>${compact ? "" : `<p class="muted mission-detail-line">${escapeHtml(habit?.title || mission.title_snapshot)} · ${formatWeek(mission.week_start, mission.week_end)}</p>`}`;
+  }
+
+  function renderMissionSummary() {
+    const host = $("#dashboard-mission-content");
+    if (!host) return;
+    const mission = getCurrentMission();
+    if (!mission) {
+      host.innerHTML = `<div class="mission-empty"><div><strong>Empieza con una meta alcanzable.</strong><p class="muted">Elige un hábito y decide cuántas veces quieres realizarlo esta semana.</p></div><button class="primary small" data-open-mission>Crear misión</button></div>`;
+      return;
+    }
+    const status = mission.is_complete ? "Objetivo alcanzado" : "En curso";
+    host.innerHTML = `${renderMissionProgressMarkup(mission, true)}<div class="mission-dashboard-footer"><span class="mission-status ${mission.is_complete ? "is-complete" : ""}">${status}</span><button class="text-button" data-view-link="missions">Revisar misión →</button></div>`;
+  }
+
+  function renderMissions() {
+    const current = getCurrentMission();
+    const title = $("#mission-current-title"), status = $("#mission-current-state"), desc = $("#mission-current-description");
+    const progressHost = $("#mission-current-progress"), dates = $("#mission-current-dates"), emptyAction = $("#mission-empty-action");
+    if (!current) {
+      title.textContent = "Todavía no tienes una misión";
+      status.textContent = "Sin configurar"; status.className = "mission-status";
+      desc.textContent = state.habits.length ? "Elige un hábito concreto y define cuántas veces quieres realizarlo esta semana." : "Primero crea un hábito pequeño y específico. Después podrás convertirlo en tu misión semanal.";
+      progressHost.innerHTML = `<div class="mission-unconfigured">${state.habits.length ? "Tu misión aparecerá aquí cuando definas tu objetivo." : "Por ejemplo: leer 15 minutos o realizar tu rutina de movilidad."}</div>`;
+      dates.textContent = "Semana actual"; emptyAction.textContent = state.habits.length ? "Crear misión" : "Crear hábito";
+    } else {
+      const linkedHabit = state.habits.find(item => item.id === current.habit_id);
+      title.textContent = current.title_snapshot || (linkedHabit ? missionTitle(linkedHabit.title) : "Misión semanal");
+      status.textContent = current.is_complete ? "Completada" : "En curso";
+      status.className = `mission-status ${current.is_complete ? "is-complete" : ""}`;
+      desc.textContent = current.is_complete ? "Objetivo alcanzado. Puedes descansar el resto de la semana o mantener tu ritmo." : `${current.target_count} registros durante esta semana. No necesitas cumplirlo todos los días.`;
+      progressHost.innerHTML = renderMissionProgressMarkup(current, false);
+      dates.textContent = formatWeek(current.week_start, current.week_end);
+      emptyAction.textContent = "Ajustar próxima semana";
+    }
+
+    const streaks = getMissionStreakData();
+    $("#mission-current-streak").textContent = streaks.currentStreak;
+    $("#mission-best-streak").textContent = streaks.bestStreak;
+    $("#mission-streak-caption").textContent = current
+      ? (streaks.currentStreak
+        ? `Llevas ${streaks.currentStreak} semana${streaks.currentStreak === 1 ? "" : "s"} exitosa${streaks.currentStreak === 1 ? "" : "s"} consecutiva${streaks.currentStreak === 1 ? "" : "s"}. La semana actual sigue abierta.`
+        : "Completa tu primera misión semanal para iniciar una racha.")
+      : (streaks.bestStreak ? `Tu mejor racha registrada es de ${streaks.bestStreak} semanas. Configura una nueva misión para retomar el ritmo.` : "Las semanas exitosas consecutivas mantienen tu racha.");
+
+    const history = [...state.missionWeeks].sort((a, b) => b.week_start.localeCompare(a.week_start)).slice(0, 12);
+    $("#mission-history").innerHTML = history.map(item => {
+      const isCurrent = item.week_start === currentWeekStart();
+      const stateLabel = item.is_complete ? "Completada" : isCurrent ? "En curso" : "No alcanzada";
+      const stateClass = item.is_complete ? "done" : isCurrent ? "active" : "missed";
+      return `<div class="mission-history-row"><div class="mission-history-symbol ${stateClass}">${item.is_complete ? "✓" : isCurrent ? "◷" : "–"}</div><div class="mission-history-copy"><strong>${escapeHtml(item.title_snapshot)}</strong><small>${formatWeek(item.week_start, item.week_end)}</small></div><span class="mission-history-progress">${Math.min(item.completed_count, item.target_count)}/${item.target_count}</span><span class="mission-history-state ${stateClass}">${stateLabel}</span></div>`;
+    }).join("") || `<div class="empty-state">Tu historial aparecerá después de configurar tu primera misión.</div>`;
+
+    const achievements = getAchievements();
+    const earned = achievements.filter(item => item.unlocked).length;
+    $("#achievement-count").textContent = `${earned} / ${achievements.length}`;
+    $("#achievement-grid").innerHTML = achievements.map(item => `<article class="achievement-card ${item.unlocked ? "is-unlocked" : "is-locked"}"><span class="achievement-icon">${item.icon}</span><div><strong>${item.title}</strong><p>${item.description}</p><small>${item.unlocked ? `Desbloqueado${item.unlockedAt ? ` · ${fmtDate(item.unlockedAt)}` : ""}` : "Por desbloquear"}</small></div></article>`).join("");
+  }
+
+  function renderMissionOptions() {
+    const select = $("#mission-habit");
+    if (!select) return;
+    const active = getActiveMissionTemplate();
+    select.innerHTML = state.habits.map(habit => `<option value="${habit.id}">${escapeHtml(habit.title)} · ${habit.frequency === "weekly" ? "Semanal" : habit.frequency === "weekdays" ? "Lunes a viernes" : "Diario"}</option>`).join("");
+    if (active && state.habits.some(item => item.id === active.habit_id)) select.value = active.habit_id;
+    updateMissionTargetHint();
+  }
+
+  function updateMissionTargetHint() {
+    const select = $("#mission-habit"), input = $("#mission-target");
+    if (!select || !input) return;
+    const habit = state.habits.find(item => item.id === select.value);
+    const max = missionExpectedMax(habit);
+    input.max = String(max);
+    if (Number(input.value) > max) input.value = String(max);
+    if (Number(input.value) < 1) input.value = "1";
+    $("#mission-target-hint").textContent = habit?.frequency === "weekly"
+      ? "Este hábito se programa una vez por semana; su objetivo máximo es 1 registro semanal."
+      : habit?.frequency === "weekdays"
+        ? "Este hábito se programa de lunes a viernes; puedes fijar una meta de 1 a 5 registros."
+        : "Puedes elegir una meta flexible de 1 a 7 registros. No es necesario realizarlo todos los días.";
+  }
+
+  function openMissionDialog() {
+    if (!state.habits.length) {
+      setView("habits"); setNotice("Crea primero un hábito para convertirlo en una misión.", "info");
+      $("[data-open-habit]")?.click();
+      return;
+    }
+    const active = getActiveMissionTemplate();
+    $("#mission-form").reset();
+    renderMissionOptions();
+    if (active) {
+      $("#mission-habit").value = active.habit_id;
+      $("#mission-target").value = active.target_count;
+    } else {
+      const selected = state.habits[0];
+      $("#mission-habit").value = selected.id;
+      $("#mission-target").value = selected.frequency === "weekly" ? 1 : selected.frequency === "weekdays" ? 3 : 4;
+    }
+    updateMissionTargetHint();
+    $("#mission-save-button").textContent = "Guardar objetivo";
+    openDialog("mission-dialog");
+  }
+
+  async function saveMission(event) {
+    event.preventDefault();
+    const habit = state.habits.find(item => item.id === $("#mission-habit").value);
+    const target = Number($("#mission-target").value);
+    if (!habit) return setNotice("Selecciona un hábito válido.", "error");
+    if (!Number.isInteger(target) || target < 1 || target > missionExpectedMax(habit)) return setNotice("La meta no coincide con la frecuencia del hábito.", "error");
+    const active = getActiveMissionTemplate();
+    const currentWeek = currentWeekStart();
+    const currentSnapshotExists = Boolean(getCurrentMission());
+    const effectiveStart = currentSnapshotExists ? addDaysISO(currentWeek, 7) : currentWeek;
+    const previousWeek = addDaysISO(effectiveStart, -7);
+    const saveButton = $("#mission-save-button");
+    saveButton.disabled = true;
+    try {
+      const payload = {
+        user_id: state.user.id, habit_id: habit.id, title: missionTitle(habit.title),
+        target_count: target, starts_on: effectiveStart, ends_on: null
+      };
+      if (active && active.starts_on >= effectiveStart) {
+        // Si la plantilla ya estaba programada para el lunes siguiente, se edita sin crear otra versión.
+        const { error } = await db.from("personal_mission_templates").update({ habit_id: habit.id, title: payload.title, target_count: target, starts_on: effectiveStart, ends_on: null }).eq("id", active.id);
+        if (error) throw error;
+      } else {
+        if (active) {
+          const { error } = await db.from("personal_mission_templates").update({ ends_on: previousWeek }).eq("id", active.id);
+          if (error) throw error;
+        }
+        const { error } = await db.from("personal_mission_templates").insert(payload);
+        if (error) throw error;
+      }
+      closeDialog("mission-dialog");
+      setNotice(currentSnapshotExists ? "Misión guardada. El nuevo objetivo comenzará la próxima semana." : "Misión semanal configurada.");
+      await loadData();
+    } catch (error) { handleError(error); await loadData(); }
+    finally { saveButton.disabled = false; }
+  }
+
   function renderAll() {
-    renderTopbar(); renderCategoryOptions(); renderLevel(); renderDashboard(); renderTasks(); renderHabits(); renderProgress(); renderHabitChart();
+    renderTopbar(); renderCategoryOptions(); renderLevel(); renderDashboard(); renderTasks(); renderHabits(); renderProgress(); renderHabitChart(); renderMissionSummary(); renderMissions(); renderMissionOptions();
   }
 
   function openDialog(id) { const dialog = document.getElementById(id); if (dialog && !dialog.open) dialog.showModal(); }
@@ -505,6 +706,16 @@
     $("#task-list").addEventListener("change", event => { const checkbox = event.target.closest('[data-action="toggle-task"]'); if (checkbox) { const row = checkbox.closest("[data-task-id]"); const task = state.tasks.find(item => item.id === row.dataset.taskId); if (task) toggleTask(task); } });
     $("#dashboard-habit-list").addEventListener("click", handleHabitAction);
     $("#habit-chart-range").addEventListener("change", renderHabitChart);
+    $("#mission-config-open").addEventListener("click", openMissionDialog);
+    $("#mission-empty-action").addEventListener("click", () => { if (!state.habits.length) { setView("habits"); $("[data-open-habit]")?.click(); } else openMissionDialog(); });
+    $("#mission-form").addEventListener("submit", saveMission);
+    $("#dashboard-mission-content").addEventListener("click", event => {
+      if (event.target.closest("[data-open-mission]")) openMissionDialog();
+      const link = event.target.closest("[data-view-link]");
+      if (link) setView(link.dataset.viewLink);
+    });
+    $("#mission-habit").addEventListener("change", updateMissionTargetHint);
+    $("#mission-target").addEventListener("input", updateMissionTargetHint);
     $("#avatar-picker").addEventListener("click", event => { const button = event.target.closest("[data-avatar-emoji]"); if (button) saveAvatar(button); });
     $("#avatar").addEventListener("click", () => setView("progress"));
     $("#logout-button").addEventListener("click", async () => { await db.auth.signOut(); location.replace("login.html"); });

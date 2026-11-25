@@ -269,3 +269,73 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .difficulty-legend { display: flex; flex-wrap: wrap; gap: 8px 15px; margin: 13px 0 -5px; color: var(--text-soft); font-size: 10px; }
 .difficulty-legend span { display: inline-flex; align-items: center; }
 .difficulty-legend .difficulty-dot { width: 8px; height: 8px; margin-right: 6px; }
+
+
+/* =========================================================
+   V1.2 — misiones semanales, rachas y colección de logros
+   ========================================================= */
+.dashboard-mission-panel { margin-top: 17px; background: linear-gradient(112deg,var(--surface),var(--primary-soft)); }
+.mission-dashboard-content { display: grid; gap: 10px; }
+.mission-title-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; color: var(--text); font-size: 13px; }
+.mission-progress-count { color: var(--primary-strong); font: 800 13px Manrope,sans-serif; white-space: nowrap; }
+.mission-progress-track { height: 10px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: var(--surface-muted); }
+.mission-progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg,#5d9f8b,#8bc8ad); transition: width .45s ease; }
+.mission-progress-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; color: var(--text-soft); font-size: 10px; }
+.mission-dashboard-footer, .mission-empty { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding-top: 10px; border-top: 1px solid var(--border); }
+.mission-empty p { margin: 4px 0 0; font-size: 11px; }
+.mission-overview-grid { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(220px,.8fr); gap: 15px; margin-bottom: 16px; }
+.mission-current-panel { min-width: 0; }
+.mission-current-panel h3 { margin: 4px 0 0; font: 700 17px Manrope,sans-serif; }
+.mission-current-panel > p { font-size: 12px; }
+.mission-status { display: inline-flex; align-items: center; width: fit-content; padding: 5px 9px; border-radius: 99px; color: var(--text-soft); background: var(--surface-muted); font-size: 10px; font-weight: 800; white-space: nowrap; }
+.mission-status.is-complete { color: #24865f; background: color-mix(in srgb,#35a776 13%,var(--surface)); }
+.mission-current-progress { margin: 18px 0 15px; }
+.mission-detail-line { margin: 9px 0 0; font-size: 10px; }
+.mission-bottom-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.mission-bottom-row .muted { font-size: 10px; }
+.mission-unconfigured { padding: 20px 12px; border: 1px dashed var(--border); border-radius: 11px; color: var(--text-soft); font-size: 12px; text-align: center; }
+.streak-panel { display: flex; flex-direction: column; justify-content: center; }
+.streak-numbers { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px; margin: 15px 0 10px; }
+.streak-numbers > div { display: grid; gap: 3px; }
+.streak-numbers strong { font: 800 31px Manrope,sans-serif; color: var(--primary-strong); }
+.streak-numbers span { color: var(--text-soft); font-size: 10px; }
+.streak-panel > p { margin: 0; font-size: 10px; line-height: 1.5; }
+.mission-history-panel, .achievement-panel { margin-top: 16px; }
+.mission-history-list { display: grid; }
+.mission-history-row { display: grid; grid-template-columns: 32px minmax(0,1fr) 48px 100px; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--border); }
+.mission-history-symbol { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--surface-muted); font-weight: 800; }
+.mission-history-symbol.done { color: #26875f; background: color-mix(in srgb,#35a776 13%,var(--surface)); }
+.mission-history-symbol.active { color: var(--primary-strong); background: var(--primary-soft); }
+.mission-history-copy { min-width: 0; }
+.mission-history-copy strong, .mission-history-copy small { display: block; }
+.mission-history-copy strong { font-size: 11px; overflow-wrap: anywhere; }
+.mission-history-copy small { margin-top: 3px; color: var(--text-faint); font-size: 9px; }
+.mission-history-progress { color: var(--text-soft); font: 700 11px Manrope,sans-serif; text-align: right; }
+.mission-history-state { font-size: 10px; text-align: right; color: var(--text-faint); }
+.mission-history-state.done { color: #26875f; font-weight: 800; }
+.mission-history-state.active { color: var(--primary-strong); font-weight: 800; }
+.mission-history-state.missed { color: var(--text-faint); }
+.achievement-count { color: var(--primary-strong); font: 800 12px Manrope,sans-serif; }
+.achievement-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.achievement-card { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft); }
+.achievement-card.is-locked { opacity: .55; filter: grayscale(.7); }
+.achievement-icon { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 11px; color: var(--primary-strong); background: var(--primary-soft); font-size: 18px; font-weight: 800; }
+.achievement-card strong { display: block; font-size: 11px; }
+.achievement-card p { margin: 3px 0; color: var(--text-soft); font-size: 9px; line-height: 1.4; }
+.achievement-card small { color: var(--primary-strong); font-size: 9px; font-weight: 800; }
+.mission-principle-note, .mission-dialog-note { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-soft); background: var(--surface-soft); font-size: 11px; line-height: 1.55; }
+.mission-principle-note strong { color: var(--text); }
+.mission-dialog-note { margin-top: 2px; }
+.notice.info { border-color: color-mix(in srgb,var(--primary) 30%,var(--border)); background: var(--primary-soft); color: var(--text); }
+
+@media (max-width: 1100px) {
+  .mission-overview-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .mission-empty { align-items: flex-start; flex-direction: column; }
+  .mission-history-row { grid-template-columns: 30px minmax(0,1fr) 40px; }
+  .mission-history-state { grid-column: 2 / 4; text-align: left; margin-top: -5px; }
+  .achievement-grid { grid-template-columns: 1fr; }
+  .mission-dashboard-footer, .mission-bottom-row { align-items: flex-start; }
+  .streak-numbers strong { font-size: 27px; }
+}
