@@ -1,5 +1,5 @@
 /*
- * MI PROGRESO V1.5.1 — correcciones de registro y distribución de hábitos.
+ * MI PROGRESO V1.6 — categorías compartidas, colores por categoría y filtros analíticos.
  * HTML define la estructura; este archivo gestiona estado, eventos,
  * validación, renderizado y comunicación con Supabase.
  */
@@ -11,7 +11,8 @@
   const TASK_XP = { easy: 10, medium: 20, hard: 35, epic: 50 };
   const HABIT_XP = { easy: 5, medium: 10, hard: 15, epic: 20 };
   const DIFFICULTY_LABEL = { easy: "Fácil", medium: "Media", hard: "Difícil", epic: "Muy difícil" };
-  const CATEGORY_COLORS = ["#6e9d91", "#8b83b8", "#c48b5b", "#678db1", "#b4778d", "#8c9c61", "#6f9ca5"];
+  const DIFFICULTY_SYMBOL = { easy: "○", medium: "◐", hard: "◆", epic: "★" };
+  const DEFAULT_CATEGORY_COLOR = "#6e9d91";
   // El costo del siguiente nivel aumenta 25 XP por nivel: 100, 125, 150…
   const RANKS = [
     { level: 1, name: "Iniciado", symbol: "🌱", note: "Tus primeros pasos" },
@@ -180,15 +181,33 @@
   }
 
   function renderCategoryOptions() {
-    const current = $("#task-category").value;
-    $("#task-category").innerHTML = `<option value="">Sin categoría</option>` + state.categories.map(cat => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`).join("");
-    if (state.categories.some(cat => cat.id === current)) $("#task-category").value = current;
-    const filter = $("#task-category-filter");
-    if (filter) {
+    const categoryOptions = `<option value="">Sin categoría</option>` + state.categories.map(cat => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`).join("");
+    for (const selector of ["#task-category", "#habit-category"]) {
+      const select = $(selector);
+      if (!select) continue;
+      const current = select.value;
+      select.innerHTML = categoryOptions;
+      if (state.categories.some(cat => cat.id === current)) select.value = current;
+    }
+    for (const selector of ["#task-category-filter", "#habit-category-filter"]) {
+      const filter = $(selector);
+      if (!filter) continue;
       const selected = filter.value || "all";
       filter.innerHTML = `<option value="all">Todas las categorías</option><option value="none">Sin categoría</option>` + state.categories.map(cat => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`).join("");
-      if ([...filter.options].some(option => option.value === selected)) filter.value = selected;
+      filter.value = ["all", "none", ...state.categories.map(cat => cat.id)].includes(selected) ? selected : "all";
     }
+  }
+
+  function categoryStyle(category) {
+    const color = category?.color || DEFAULT_CATEGORY_COLOR;
+    return `--category-color:${escapeHtml(color)}`;
+  }
+
+  function difficultyMarkup(value, xp) {
+    const key = value || "medium";
+    const symbol = DIFFICULTY_SYMBOL[key] || DIFFICULTY_SYMBOL.medium;
+    const label = DIFFICULTY_LABEL[key] || DIFFICULTY_LABEL.medium;
+    return `<span class="difficulty-pill" title="Dificultad: ${label}" aria-label="Dificultad ${label}"><span class="difficulty-symbol" aria-hidden="true">${symbol}</span>${label}${Number.isFinite(xp) ? ` · ${xp} XP` : ""}</span>`;
   }
 
   function xpAtLevel(level) {
@@ -246,9 +265,9 @@
     const category = state.categories.find(cat => cat.id === task.category_id);
     const done = Boolean(task.completed_at);
     const archived = Boolean(task.archived_at);
-    return `<div class="task-row difficulty-${task.difficulty || "medium"} ${done ? "is-complete" : ""} ${archived ? "is-archived" : ""}" data-task-id="${task.id}">
+    return `<div class="task-row category-themed ${done ? "is-complete" : ""} ${archived ? "is-archived" : ""}" style="${categoryStyle(category)}" data-task-id="${task.id}">
       <label class="check-wrap"><input type="checkbox" data-action="toggle-task" ${done ? "checked" : ""} ${archived ? "disabled" : ""} aria-label="Completar ${escapeHtml(task.title)}"><span class="custom-check"></span></label>
-      <div class="task-main"><div class="task-title">${escapeHtml(task.title)}</div>${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ""}<div class="task-meta">${category ? `<span class="category-chip" style="--chip-color:${escapeHtml(category.color)}">${escapeHtml(category.name)}</span>` : `<span class="muted">Sin categoría</span>`}<span>${task.due_date ? `Objetivo: ${fmtDate(task.due_date)}` : "Sin fecha objetivo"}</span><span class="difficulty-pill difficulty-${task.difficulty || "medium"}">${DIFFICULTY_LABEL[task.difficulty] || "Media"} · ${xpForTask(task.difficulty)} XP</span>${done ? `<span class="completed-label">Completada ${fmtDateTime(task.completed_at)}</span>` : ""}${archived ? `<span class="muted">Archivada ${fmtDateTime(task.archived_at)}</span>` : ""}</div></div>
+      <div class="task-main"><div class="task-title"><span>${escapeHtml(task.title)}</span>${difficultyMarkup(task.difficulty, xpForTask(task.difficulty))}</div>${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ""}<div class="task-meta">${category ? `<span class="category-chip" style="--chip-color:${escapeHtml(category.color)}">${escapeHtml(category.name)}</span>` : `<span class="muted">Sin categoría</span>`}<span>${task.due_date ? `Objetivo: ${fmtDate(task.due_date)}` : "Sin fecha objetivo"}</span>${done ? `<span class="completed-label">Completada ${fmtDateTime(task.completed_at)}</span>` : ""}${archived ? `<span class="muted">Archivada ${fmtDateTime(task.archived_at)}</span>` : ""}</div></div>
       ${compact ? "" : `<div class="task-actions"><button class="icon-button" data-action="edit-task" title="Editar" aria-label="Editar">✎</button>${archived ? `<button class="icon-button" data-action="restore-task" title="Restaurar">↶</button>` : `<button class="icon-button" data-action="archive-task" title="Archivar">▣</button>`}<button class="icon-button danger-text" data-action="delete-task" title="Eliminar definitivamente">×</button></div>`}
     </div>`;
   }
@@ -318,7 +337,7 @@
       const category = task ? state.categories.find(item => item.id === task.category_id) : null;
       const dateLabel = task?.completed_at ? formatCompletedDay(task.completed_at) : formatXPEventDay(event);
       const detail = category ? ` · ${escapeHtml(category.name)}` : "";
-      const tag = task ? `<span class="difficulty-pill difficulty-${task.difficulty || "medium"}">${DIFFICULTY_LABEL[task.difficulty] || "Media"}</span>` : `<strong class="history-xp">+${Number(event.xp_amount || 0)} XP</strong>`;
+      const tag = task ? difficultyMarkup(task.difficulty, null) : `<strong class="history-xp">${Number(event.xp_amount || 0) >= 0 ? "+" : ""}${Number(event.xp_amount || 0)} XP</strong>`;
       return `<div class="dashboard-recent-row"><span class="dashboard-recent-check" aria-hidden="true">✓</span><div class="dashboard-recent-copy"><strong>${escapeHtml(event.title_snapshot)}</strong><small>${dateLabel}${detail}</small></div>${tag}</div>`;
     }).join("") || `<div class="empty-state">Cuando completes tareas, aquí aparecerán las más recientes junto con el día y la hora.</div>`;
     renderDashboardAnalytics();
@@ -338,7 +357,11 @@
     if (search) rows = rows.filter(t => `${t.title} ${t.description}`.toLocaleLowerCase("es").includes(search));
     rows.sort((a, b) => Number(Boolean(a.completed_at)) - Number(Boolean(b.completed_at)) || (a.due_date || "9999").localeCompare(b.due_date || "9999"));
     $("#task-list").innerHTML = rows.map(task => taskRow(task)).join("") || `<div class="empty-state panel">No hay tareas para este filtro.</div>`;
-    $("#category-strip").innerHTML = state.categories.map(cat => `<div class="category-manage-row"><span class="category-dot" style="background:${escapeHtml(cat.color)}"></span><span>${escapeHtml(cat.name)}</span><span class="muted">${state.tasks.filter(t => t.category_id === cat.id && !t.archived_at).length} tareas</span><button class="icon-button danger-text" data-action="delete-category" data-category-id="${cat.id}" title="Eliminar categoría">×</button></div>`).join("") || `<div class="empty-state">Aún no tienes categorías.</div>`;
+    $("#category-strip").innerHTML = state.categories.map(cat => {
+      const taskCount = state.tasks.filter(t => t.category_id === cat.id && !t.archived_at).length;
+      const habitCount = state.habits.filter(h => h.category_id === cat.id).length;
+      return `<div class="category-manage-row"><span class="category-dot" style="background:${escapeHtml(cat.color)}"></span><strong>${escapeHtml(cat.name)}</strong><span class="muted">${taskCount} tareas · ${habitCount} hábitos</span><button class="icon-button" data-action="edit-category" data-category-id="${cat.id}" title="Editar nombre o color" aria-label="Editar categoría">✎</button><button class="icon-button danger-text" data-action="delete-category" data-category-id="${cat.id}" title="Eliminar categoría">×</button></div>`;
+    }).join("") || `<div class="empty-state">Aún no tienes categorías.</div>`;
   }
 
   function habitFrequencyLabel(habit) {
@@ -360,11 +383,21 @@
     const disabled = !isHabitScheduledToday(habit) || (done && !editableRecord);
     const modeLabel = habit.habit_type === "negative" ? "Hábito a reducir" : habitTrackingLabel(habit);
     const buttonLabel = done ? (editableRecord ? "Actualizar" : "Hecho") : currentLog ? "Actualizar" : "Registrar";
-    return `<div class="habit-compact difficulty-${habit.difficulty || "medium"}" data-habit-id="${habit.id}"><div><strong>${escapeHtml(habit.title)}</strong><small><span class="difficulty-dot difficulty-${habit.difficulty || "medium"}"></span>${habitFrequencyLabel(habit)} · ${modeLabel}</small></div><button class="small ${done ? "secondary" : "primary"}" data-action="record-habit" ${disabled ? "disabled" : ""}>${buttonLabel}</button></div>`;
+    const category = state.categories.find(cat => cat.id === habit.category_id);
+    return `<div class="habit-compact category-themed" style="${categoryStyle(category)}" data-habit-id="${habit.id}"><div><strong>${escapeHtml(habit.title)}</strong><small>${category ? `<span class="category-mini-label">${escapeHtml(category.name)}</span> · ` : ""}${DIFFICULTY_SYMBOL[habit.difficulty] || "◐"} ${DIFFICULTY_LABEL[habit.difficulty] || "Media"} · ${habitFrequencyLabel(habit)} · ${modeLabel}</small></div><button class="small ${done ? "secondary" : "primary"}" data-action="record-habit" ${disabled ? "disabled" : ""}>${buttonLabel}</button></div>`;
   }
 
   function renderHabits() {
-    $("#habit-list").innerHTML = state.habits.map(habit => {
+    const categoryFilter = $("#habit-category-filter")?.value || "all";
+    const visibleHabits = state.habits.filter(habit => categoryFilter === "all" || (categoryFilter === "none" ? !habit.category_id : habit.category_id === categoryFilter));
+    const categoryOrder = new Map(state.categories.map((category, index) => [category.id, index]));
+    visibleHabits.sort((a, b) => {
+      const ai = a.category_id ? (categoryOrder.get(a.category_id) ?? 9999) : 10000;
+      const bi = b.category_id ? (categoryOrder.get(b.category_id) ?? 9999) : 10000;
+      return ai - bi || a.title.localeCompare(b.title, "es");
+    });
+    let previousGroup = null;
+    $("#habit-list").innerHTML = visibleHabits.map(habit => {
       const done = isHabitDoneThisPeriod(habit);
       const logs = state.habitLogs.filter(log => log.habit_id === habit.id).length;
       const freq = habitFrequencyLabel(habit);
@@ -389,10 +422,16 @@
         currentProgress = `${checked}/${logSteps.length || steps.length} subtareas marcadas${currentLog.is_success ? " · Rutina completa" : " · Avance parcial"}`;
       } else if (currentLog && currentLog.is_success) currentProgress = "Registrado para este período";
       const kindLabel = habit.habit_type === "negative" ? "Reducir" : "Desarrollar";
+      const category = state.categories.find(cat => cat.id === habit.category_id);
+      const groupKey = habit.category_id || "__uncategorized__";
+      const categoryHeading = groupKey !== previousGroup
+        ? `<div class="habit-category-heading" style="${categoryStyle(category)}"><span class="category-dot" style="background:${escapeHtml(category?.color || DEFAULT_CATEGORY_COLOR)}"></span><strong>${category ? escapeHtml(category.name) : "Sin categoría"}</strong><small>${visibleHabits.filter(item => (item.category_id || "__uncategorized__") === groupKey).length} hábitos</small></div>`
+        : "";
+      previousGroup = groupKey;
       const editableRecord = habit.tracking_mode !== "simple";
       const recordDisabled = !isHabitScheduledToday(habit) || (done && !editableRecord);
       const recordLabel = done ? (editableRecord ? "Actualizar" : "Completado") : currentLog ? "Actualizar" : "Registrar";
-      return `<article class="panel habit-card difficulty-${habit.difficulty || "medium"}" data-habit-id="${habit.id}"><div class="habit-card-top"><span class="habit-symbol">${habit.habit_type === "negative" ? "↓" : "↻"}</span><span class="difficulty-pill difficulty-${habit.difficulty || "medium"}">${DIFFICULTY_LABEL[habit.difficulty] || "Media"} · ${xpForHabit(habit.difficulty)} XP</span></div><div class="habit-card-kind">${kindLabel} · ${habit.tracking_mode === "quantity" ? "Cantidad" : habit.tracking_mode === "checklist" ? "Subtareas" : "Check"}</div><h3>${escapeHtml(habit.title)}</h3><p class="muted">${escapeHtml(habit.description || freq)}</p><div class="habit-card-details">${details}</div>${currentProgress ? `<div class="habit-current-progress">${escapeHtml(currentProgress)}</div>` : ""}${habit.tracking_mode === "checklist" && steps.length ? `<div class="habit-step-preview">${steps.slice(0, 4).map(step => `<span>${escapeHtml(step.title)}</span>`).join("")}${steps.length > 4 ? `<small>+${steps.length - 4} más</small>` : ""}</div>` : ""}<div class="habit-card-foot"><span class="muted">${freq} · ${logs} registros</span><button class="primary small" data-action="record-habit" ${recordDisabled ? "disabled" : ""}>${recordLabel}</button></div><div class="habit-card-actions"><button class="text-button" data-action="edit-habit">Editar</button><button class="text-button danger-text" data-action="delete-habit">Eliminar</button></div></article>`;
+      return `${categoryHeading}<article class="panel habit-card category-themed" style="${categoryStyle(category)}" data-habit-id="${habit.id}"><div class="habit-card-top"><span class="habit-symbol">${habit.habit_type === "negative" ? "↓" : "↻"}</span>${difficultyMarkup(habit.difficulty, xpForHabit(habit.difficulty))}</div><div class="habit-card-kind">${kindLabel} · ${habit.tracking_mode === "quantity" ? "Cantidad" : habit.tracking_mode === "checklist" ? "Subtareas" : "Check"}</div><h3>${escapeHtml(habit.title)}</h3><p class="muted">${escapeHtml(habit.description || freq)}</p><div class="habit-card-details">${details}</div>${category ? `<span class="category-chip habit-category-chip" style="--chip-color:${escapeHtml(category.color)}">${escapeHtml(category.name)}</span>` : `<span class="muted habit-no-category">Sin categoría</span>`}${currentProgress ? `<div class="habit-current-progress">${escapeHtml(currentProgress)}</div>` : ""}${habit.tracking_mode === "checklist" && steps.length ? `<div class="habit-step-preview">${steps.slice(0, 4).map(step => `<span>${escapeHtml(step.title)}</span>`).join("")}${steps.length > 4 ? `<small>+${steps.length - 4} más</small>` : ""}</div>` : ""}<div class="habit-card-foot"><span class="muted">${freq} · ${logs} registros</span><button class="primary small" data-action="record-habit" ${recordDisabled ? "disabled" : ""}>${recordLabel}</button></div><div class="habit-card-actions"><button class="text-button" data-action="edit-habit">Editar</button><button class="text-button danger-text" data-action="delete-habit">Eliminar</button></div></article>`;
     }).join("") || `<div class="empty-state panel">Todavía no has creado hábitos. Empieza con uno pequeño y fácil de repetir.</div>`;
   }
 
@@ -437,9 +476,13 @@
       .sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1) || a.habit.title.localeCompare(b.habit.title, "es"));
   }
 
-  function buildHabitWeeklySeries(weeksToShow, habitId = null) {
+  function buildHabitWeeklySeries(weeksToShow, habitId = null, categoryId = "all") {
     const current = weekStartFor(new Date());
-    const selectedHabits = habitId ? state.habits.filter(habit => habit.id === habitId) : state.habits;
+    const selectedHabits = state.habits.filter(habit => {
+      const matchesHabit = !habitId || habit.id === habitId;
+      const matchesCategory = categoryId === "all" || (categoryId === "none" ? !habit.category_id : habit.category_id === categoryId);
+      return matchesHabit && matchesCategory;
+    });
     const weeks = [];
     for (let offset = weeksToShow - 1; offset >= 0; offset -= 1) {
       const monday = new Date(current);
@@ -457,14 +500,22 @@
     return weeks;
   }
 
-  function renderHabitChart(hostSelector = "#habit-chart", summarySelector = "#habit-chart-summary", rangeSelector = "#habit-chart-range", habitSelector = "#habit-chart-habit") {
+  function renderHabitChart(hostSelector = "#habit-chart", summarySelector = "#habit-chart-summary", rangeSelector = "#habit-chart-range", habitSelector = "#habit-chart-habit", categorySelector = "#habit-chart-category") {
     const host = $(hostSelector);
     const summary = $(summarySelector);
     if (!host || !summary) return;
     const range = Number($(rangeSelector)?.value || 8);
     const selectedHabitId = $(habitSelector)?.value || "all";
     const selectedHabit = selectedHabitId === "all" ? null : state.habits.find(habit => habit.id === selectedHabitId) || null;
-    const series = buildHabitWeeklySeries(range, selectedHabit?.id || null);
+    const selectedCategoryId = $(categorySelector)?.value || "all";
+    const selectedCategory = selectedCategoryId === "all" ? null : selectedCategoryId === "none" ? { name: "Sin categoría" } : state.categories.find(category => category.id === selectedCategoryId) || null;
+    const seriesCategory = selectedCategory?.color
+      ? selectedCategory
+      : selectedHabit?.category_id
+        ? state.categories.find(category => category.id === selectedHabit.category_id) || null
+        : null;
+    host.style.setProperty("--chart-series-color", seriesCategory?.color || "");
+    const series = buildHabitWeeklySeries(range, selectedHabit?.id || null, selectedCategoryId);
     const valid = series.map((item, index) => ({ ...item, index })).filter(item => item.expected > 0);
     if (!valid.length) {
       host.innerHTML = `<div class="empty-state">Registra algunos hábitos para comenzar a ver tu evolución semanal.</div>`;
@@ -492,17 +543,26 @@
     const closedWeeks = valid.filter(item => item.weekStart < currentWeekStart());
     const avg = closedWeeks.length ? Math.round(closedWeeks.reduce((sum, item) => sum + item.percent, 0) / closedWeeks.length) : latest.percent;
     const periodLabel = latest.weekStart === currentWeekStart() ? "Semana actual hasta hoy" : "Última semana registrada";
-    const subject = selectedHabit ? `${selectedHabit.title}: ` : "Todos los hábitos: ";
+    const subject = selectedHabit ? `${selectedHabit.title}: ` : selectedCategory ? `${selectedCategory.name}: ` : "Todos los hábitos: ";
     summary.textContent = `${subject}${periodLabel.toLocaleLowerCase("es-CL")}: ${latest.percent}% · ${latest.completed} de ${latest.expected} registros · promedio del período: ${avg}%`;
   }
 
   function renderHabitChartOptions() {
-    for (const selector of ["#habit-chart-habit", "#dashboard-chart-habit"]) {
-      const select = $(selector);
-      if (!select) continue;
-      const current = select.value || "all";
-      select.innerHTML = `<option value="all">Todos los hábitos</option>` + state.habits.map(habit => `<option value="${habit.id}">${escapeHtml(habit.title)}</option>`).join("");
-      select.value = state.habits.some(habit => habit.id === current) ? current : "all";
+    const pairs = [
+      { category: "#habit-chart-category", habit: "#habit-chart-habit" },
+      { category: "#dashboard-chart-category", habit: "#dashboard-chart-habit" }
+    ];
+    for (const pair of pairs) {
+      const categorySelect = $(pair.category);
+      const habitSelect = $(pair.habit);
+      if (!categorySelect || !habitSelect) continue;
+      const currentCategory = categorySelect.value || "all";
+      categorySelect.innerHTML = `<option value="all">Todas las categorías</option><option value="none">Sin categoría</option>` + state.categories.map(category => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
+      categorySelect.value = ["all", "none", ...state.categories.map(category => category.id)].includes(currentCategory) ? currentCategory : "all";
+      const currentHabit = habitSelect.value || "all";
+      const filteredHabits = state.habits.filter(habit => categorySelect.value === "all" || (categorySelect.value === "none" ? !habit.category_id : habit.category_id === categorySelect.value));
+      habitSelect.innerHTML = `<option value="all">Todos los hábitos</option>` + filteredHabits.map(habit => `<option value="${habit.id}">${escapeHtml(habit.title)}</option>`).join("");
+      habitSelect.value = filteredHabits.some(habit => habit.id === currentHabit) ? currentHabit : "all";
     }
   }
 
@@ -962,8 +1022,8 @@
   function renderAll() {
     renderTopbar(); renderCategoryOptions(); renderLevel(); renderDashboard(); renderTasks(); renderHabits(); renderProgress();
     renderHabitChartOptions();
-    renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit");
-    renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit");
+    renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit", "#habit-chart-category");
+    renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit", "#dashboard-chart-category");
     renderMissionSummary(); renderMissions(); renderMissionOptions(); renderWeeklyReview();
   }
 
@@ -983,6 +1043,7 @@
     const form = $("#habit-form"); form.reset(); form.elements.id.value = habit?.id || "";
     $("#habit-dialog-title").textContent = habit ? "Editar hábito" : "Crear hábito";
     form.elements.title.value = habit?.title || ""; form.elements.description.value = habit?.description || "";
+    form.elements.category_id.value = habit?.category_id || "";
     form.elements.frequency.value = habit?.frequency || "daily"; form.elements.difficulty.value = habit?.difficulty || "medium";
     form.elements.habit_type.value = habit?.habit_type || "positive";
     form.elements.tracking_mode.value = habit?.tracking_mode || "simple";
@@ -1148,15 +1209,77 @@
       closeDialog("task-dialog"); setNotice(id ? "Tarea actualizada." : "Tarea creada."); await loadData();
     } catch (error) { handleError(error); } finally { button.disabled = false; }
   }
-  async function saveCategory(event) {
-    event.preventDefault(); const form = event.currentTarget; const name = form.elements.name.value.trim();
-    if (!name) return;
+  function openCategory(category = null) {
+    const form = $("#category-form");
+    const dialog = $("#category-dialog");
+    if (!form || !dialog) {
+      setNotice("No se encontró el formulario de categorías. Recarga la página e inténtalo nuevamente.", "error");
+      console.error("Falta #category-form o #category-dialog en index.html.");
+      return;
+    }
+
+    // Usamos querySelector por nombre para evitar ambigüedades de propiedades
+    // heredadas del formulario (por ejemplo, form.name o form.id).
+    const idField = form.querySelector('[name="id"]');
+    const nameField = form.querySelector('[name="name"]');
+    const colorField = form.querySelector('[name="color"]');
+    form.reset();
+    idField.value = category?.id || "";
+    nameField.value = category?.name || "";
+    colorField.value = category?.color || DEFAULT_CATEGORY_COLOR;
+    $("#category-dialog-title").textContent = category ? "Editar categoría" : "Nueva categoría";
+
     try {
-      const color = CATEGORY_COLORS[state.categories.length % CATEGORY_COLORS.length];
-      const { error } = await db.from("personal_categories").insert({ user_id: state.user.id, name, color, sort_order: state.categories.length });
-      if (error) { if (error.code === "23505") throw new Error("Ya existe una categoría con ese nombre."); throw error; }
-      closeDialog("category-dialog"); form.reset(); setNotice("Categoría creada."); await loadData();
-    } catch (error) { handleError(error); }
+      if (!dialog.open) dialog.showModal();
+    } catch (error) {
+      console.error("No se pudo abrir el diálogo de categorías:", error);
+      setNotice("No se pudo abrir el formulario de categorías. Prueba recargando la página.", "error");
+    }
+  }
+
+  async function saveCategory(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const id = form.querySelector('[name="id"]').value;
+    const name = form.querySelector('[name="name"]').value.trim();
+    const color = form.querySelector('[name="color"]').value || DEFAULT_CATEGORY_COLOR;
+    if (!state.user?.id) return setNotice("Tu sesión no está disponible. Vuelve a iniciar sesión.", "error");
+    if (!name) return setNotice("Escribe un nombre para la categoría.", "error");
+
+    const payload = {
+      user_id: state.user.id,
+      name,
+      color,
+      sort_order: id ? (state.categories.find(item => item.id === id)?.sort_order ?? 0) : state.categories.length
+    };
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = "Guardando…";
+    try {
+      const result = id
+        ? await db.from("personal_categories").update({ name, color }).eq("id", id).select().single()
+        : await db.from("personal_categories").insert(payload).select().single();
+      if (result.error) {
+        if (result.error.code === "23505") throw new Error("Ya existe una categoría con ese nombre.");
+        throw result.error;
+      }
+
+      closeDialog("category-dialog");
+      form.reset();
+      setNotice(id ? "Categoría actualizada." : "Categoría creada.");
+      try {
+        await loadData();
+      } catch (refreshError) {
+        console.error("La categoría se guardó, pero no se pudo actualizar la vista:", refreshError);
+        setNotice("La categoría se guardó. Recarga la página para actualizar las listas.", "info");
+      }
+    } catch (error) {
+      handleError(error);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
   }
   async function saveHabit(event) {
     event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value;
@@ -1174,6 +1297,7 @@
     if (stepTitles.some(step => step.length > 100)) return setNotice("Cada subtarea debe tener como máximo 100 caracteres.", "error");
     const payload = {
       user_id: state.user.id, title: form.elements.title.value.trim(), description: form.elements.description.value.trim(),
+      category_id: form.elements.category_id.value || null,
       frequency: form.elements.frequency.value, difficulty: form.elements.difficulty.value, is_active: true,
       habit_type: habitType, tracking_mode: trackingMode, target_value: targetValue, max_value: maxValue,
       unit, penalty_xp: 5
@@ -1223,7 +1347,7 @@
   }
   async function deleteCategory(id) {
     const category = state.categories.find(item => item.id === id); if (!category) return;
-    if (!confirm(`¿Eliminar la categoría “${category.name}”? Las tareas asociadas quedarán sin categoría.`)) return;
+    if (!confirm(`¿Eliminar la categoría “${category.name}”? Las tareas y hábitos asociados quedarán sin categoría. Sus registros no se eliminarán.`)) return;
     try { const { error } = await db.from("personal_categories").delete().eq("id", id); if (error) throw error; setNotice("Categoría eliminada."); await loadData(); }
     catch (error) { handleError(error); }
   }
@@ -1259,7 +1383,14 @@
     $$('[data-open-task]').forEach(button => button.addEventListener("click", () => openTask()));
     $$('[data-open-habit]').forEach(button => button.addEventListener("click", () => openHabit()));
     $$('[data-close]').forEach(button => button.addEventListener("click", () => closeDialog(button.dataset.close)));
-    $("#create-category-open").addEventListener("click", () => openDialog("category-dialog"));
+    // Delegación: cualquier botón con data-open-category abre el mismo formulario.
+    // Así evitamos depender de IDs distintos según la sección desde donde se invoque.
+    document.addEventListener("click", event => {
+      const trigger = event.target.closest("[data-open-category]");
+      if (!trigger) return;
+      event.preventDefault();
+      openCategory();
+    });
     $("#task-form").addEventListener("submit", saveTask);
     $("#category-form").addEventListener("submit", saveCategory);
     $("#habit-form").addEventListener("submit", saveHabit);
@@ -1274,16 +1405,26 @@
     $("#task-search").addEventListener("input", renderTasks);
     $("#task-filter").addEventListener("change", renderTasks);
     $("#task-category-filter").addEventListener("change", renderTasks);
+    $("#habit-category-filter").addEventListener("change", renderHabits);
     $("#task-list").addEventListener("click", handleTaskAction);
-    $("#category-strip").addEventListener("click", event => { const button = event.target.closest('[data-action="delete-category"]'); if (button) deleteCategory(button.dataset.categoryId); });
+    $("#category-strip").addEventListener("click", event => {
+      const button = event.target.closest("[data-action]");
+      if (!button) return;
+      const category = state.categories.find(item => item.id === button.dataset.categoryId);
+      if (!category) return;
+      if (button.dataset.action === "delete-category") deleteCategory(category.id);
+      if (button.dataset.action === "edit-category") openCategory(category);
+    });
     $("#habit-list").addEventListener("click", handleHabitAction);
     $("#dashboard-task-list").addEventListener("change", event => { const checkbox = event.target.closest('[data-action="toggle-task"]'); if (checkbox) { const row = checkbox.closest("[data-task-id]"); const task = state.tasks.find(item => item.id === row.dataset.taskId); if (task) toggleTask(task); } });
     $("#task-list").addEventListener("change", event => { const checkbox = event.target.closest('[data-action="toggle-task"]'); if (checkbox) { const row = checkbox.closest("[data-task-id]"); const task = state.tasks.find(item => item.id === row.dataset.taskId); if (task) toggleTask(task); } });
     $("#dashboard-habit-list").addEventListener("click", handleHabitAction);
-    $("#habit-chart-range").addEventListener("change", () => renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit"));
-    $("#habit-chart-habit").addEventListener("change", () => renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit"));
-    $("#dashboard-chart-range").addEventListener("change", () => renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit"));
-    $("#dashboard-chart-habit").addEventListener("change", () => renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit"));
+    $("#habit-chart-range").addEventListener("change", () => renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit", "#habit-chart-category"));
+    $("#habit-chart-habit").addEventListener("change", () => renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit", "#habit-chart-category"));
+    $("#habit-chart-category").addEventListener("change", () => { renderHabitChartOptions(); renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit", "#habit-chart-category"); });
+    $("#dashboard-chart-range").addEventListener("change", () => renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit", "#dashboard-chart-category"));
+    $("#dashboard-chart-habit").addEventListener("change", () => renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit", "#dashboard-chart-category"));
+    $("#dashboard-chart-category").addEventListener("change", () => { renderHabitChartOptions(); renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit", "#dashboard-chart-category"); });
     $("#mission-config-open").addEventListener("click", openMissionDialog);
     $("#mission-empty-action").addEventListener("click", () => { if (!state.habits.length) { setView("habits"); $("[data-open-habit]")?.click(); } else openMissionDialog(); });
     $("#mission-form").addEventListener("submit", saveMission);

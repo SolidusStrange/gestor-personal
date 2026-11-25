@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.6 · Categorías y analíticas</title>
+  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.6.1 · Categorías y analíticas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.6">
+  <link rel="stylesheet" href="styles.css?v=1.6.1">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.6" defer></script>
+  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.6.1" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -83,7 +83,7 @@
     </section>
 
     <section id="tasks-view" class="view" hidden>
-      <div class="section-heading"><div><div class="eyebrow">ORGANIZA TUS PENDIENTES</div><h2>Tareas personales</h2><p class="muted">El color identifica la categoría; el símbolo indica la dificultad.</p></div><div class="action-row"><button class="secondary" id="create-category-open">+ Categoría</button><button class="primary" data-open-task>+ Crear tarea</button></div></div>
+      <div class="section-heading"><div><div class="eyebrow">ORGANIZA TUS PENDIENTES</div><h2>Tareas personales</h2><p class="muted">El color identifica la categoría; el símbolo indica la dificultad.</p></div><div class="action-row"><button type="button" class="secondary" id="create-category-open" data-open-category>+ Categoría</button><button class="primary" data-open-task>+ Crear tarea</button></div></div>
       <div class="difficulty-legend icon-legend" aria-label="Leyenda de dificultad"><span><i>○</i>Fácil</span><span><i>◐</i>Media</span><span><i>◆</i>Difícil</span><span><i>★</i>Muy difícil</span></div>
       <div class="filter-row"><input id="task-search" type="search" placeholder="Buscar una tarea" aria-label="Buscar una tarea"><select id="task-filter" aria-label="Filtrar tareas"><option value="active">Pendientes</option><option value="completed">Completadas</option><option value="archived">Archivadas</option><option value="all">Todas las no archivadas</option></select><select id="task-category-filter" aria-label="Filtrar por categoría"><option value="all">Todas las categorías</option></select></div>
       <div id="task-list" class="task-list"></div>
@@ -91,7 +91,7 @@
     </section>
 
     <section id="habits-view" class="view" hidden>
-      <div class="section-heading"><div><div class="eyebrow">CONSTANCIA</div><h2>Hábitos</h2><p class="muted">Registra tus avances diarios y acumula experiencia.</p></div><div class="action-row"><button class="secondary" id="create-category-habit-open">+ Categoría</button><button class="primary" data-open-habit>+ Crear hábito</button></div></div>
+      <div class="section-heading"><div><div class="eyebrow">CONSTANCIA</div><h2>Hábitos</h2><p class="muted">Registra tus avances diarios y acumula experiencia.</p></div><div class="action-row"><button type="button" class="secondary" id="create-category-habit-open" data-open-category>+ Categoría</button><button class="primary" data-open-habit>+ Crear hábito</button></div></div>
       <div class="info-strip">Puedes crear hábitos positivos o hábitos que quieras reducir. Cada uno admite un check, subtareas o registro de cantidad. El color identifica su categoría; el símbolo indica la dificultad.</div>
       <div class="difficulty-legend icon-legend" aria-label="Leyenda de dificultad"><span><i>○</i>Fácil</span><span><i>◐</i>Media</span><span><i>◆</i>Difícil</span><span><i>★</i>Muy difícil</span></div>
       <div class="filter-row habit-filter-row"><select id="habit-category-filter" aria-label="Filtrar hábitos por categoría"><option value="all">Todas las categorías</option></select></div>
