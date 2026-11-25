@@ -172,7 +172,7 @@
   <div class="form-grid"><label>Tipo de hábito<select name="habit_type" id="habit-type"><option value="positive">Hábito que quiero desarrollar</option><option value="negative">Hábito que quiero reducir</option></select></label><label>Frecuencia<select name="frequency"><option value="daily">Todos los días</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Una vez por semana</option></select></label></div>
   <div class="form-grid"><label>Forma de registro<select name="tracking_mode" id="habit-tracking-mode"><option value="simple">Un check</option><option value="checklist">Subtareas</option><option value="quantity">Cantidad</option></select></label><label>Complejidad<select name="difficulty"><option value="easy">Fácil · 5 XP</option><option value="medium" selected>Media · 10 XP</option><option value="hard">Difícil · 15 XP</option><option value="epic">Muy difícil · 20 XP</option></select></label></div>
   <p class="hint" id="habit-type-help">Elige una forma de registrar la actividad. Puedes empezar con un check y cambiar a cantidad o subtareas cuando lo necesites.</p>
-  <div id="habit-quantity-fields" class="habit-config-fields" hidden><label id="habit-target-value-label">Objetivo por registro<input name="target_value" type="number" min="0.01" step="0.01" value="10"></label></div>
+  <div id="habit-quantity-fields" class="habit-config-fields" hidden><label><span id="habit-target-value-label">Objetivo por registro</span><input name="target_value" type="number" min="0.01" step="0.01" value="10" required></label></div>
   <div id="habit-negative-fields" class="habit-config-fields" hidden><label>Límite máximo permitido<input name="max_value" type="number" min="0" step="0.01" value="60"><small class="muted">El límite se considera permitido. Superarlo genera una penalización de 5 XP como máximo.</small></label></div>
   <div id="habit-unit-fields" class="habit-config-fields" hidden><label>Unidad de medida<input name="unit" maxlength="24" value="repeticiones" placeholder="repeticiones, minutos, páginas..."></label></div>
   <div id="habit-steps-fields" class="habit-config-fields" hidden><label>Subtareas <span class="muted">(una por línea, máximo 12)</span><textarea name="steps" id="habit-steps" rows="5" maxlength="900" placeholder="Flexiones
@@ -184,8 +184,13 @@ Plancha"></textarea></label></div>
 
 <dialog id="habit-log-dialog" class="modal"><form id="habit-log-form"><div class="modal-heading"><div><div class="eyebrow">REGISTRO DE HOY</div><h2 id="habit-log-title">Registrar hábito</h2><p id="habit-log-frequency" class="muted"></p></div><button type="button" class="icon-button" data-close="habit-log-dialog" aria-label="Cerrar">✕</button></div>
   <div id="habit-log-simple" class="habit-log-simple" hidden><p>Confirma que realizaste esta actividad. El registro se guardará para el período actual.</p></div>
-  <div id="habit-log-quantity" hidden><label id="habit-log-quantity-label">Cantidad realizada<input id="habit-log-quantity-value" type="number" min="0" step="0.01" required></label><p id="habit-log-quantity-hint" class="hint"></p></div>
-  <div id="habit-log-checklist" hidden><strong>Marca las subtareas realizadas</strong><div id="habit-log-checklist-items" class="habit-log-checklist-items"></div><p class="hint">Puedes guardar un avance parcial. Completar todas las subtareas completa el hábito y cuenta para la misión.</p></div>
+  <div id="habit-log-quantity" hidden><label><span id="habit-log-quantity-caption">Cantidad realizada</span><input id="habit-log-quantity-value" type="number" min="0" step="0.01" required></label><p id="habit-log-quantity-hint" class="hint"></p></div>
+  <div id="habit-log-checklist" hidden>
+    <div class="habit-checklist-heading"><strong>Marca las subtareas realizadas</strong><div class="habit-checklist-tools"><button type="button" class="text-button" id="habit-checklist-select-all">Marcar todas</button><button type="button" class="text-button" id="habit-checklist-clear">Quitar marcas</button></div></div>
+    <div id="habit-log-checklist-progress" class="habit-checklist-progress" aria-live="polite"></div>
+    <div id="habit-log-checklist-items" class="habit-log-checklist-items"></div>
+    <p class="hint">Puedes guardar un avance parcial. Al marcar todas las subtareas y guardar, el hábito queda completado y cuenta para la misión.</p>
+  </div>
   <div class="modal-actions"><button type="button" class="secondary" data-close="habit-log-dialog">Cancelar</button><button type="submit" class="primary" id="habit-log-save">Guardar registro</button></div>
 </form></dialog>
 <dialog id="mission-dialog" class="modal"><form id="mission-form"><div class="modal-heading"><div><div class="eyebrow">PLANIFICACIÓN FLEXIBLE</div><h2>Configurar misión semanal</h2></div><button type="button" class="icon-button" data-close="mission-dialog" aria-label="Cerrar">✕</button></div>

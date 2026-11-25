@@ -1,5 +1,5 @@
 /*
- * MI PROGRESO V1.5 — hábitos flexibles, medallas y lógica de la aplicación.
+ * MI PROGRESO V1.5.1 — correcciones de registro y distribución de hábitos.
  * HTML define la estructura; este archivo gestiona estado, eventos,
  * validación, renderizado y comunicación con Supabase.
  */
@@ -1000,7 +1000,13 @@
     if (type === "negative") { modeSelect.value = "quantity"; modeSelect.disabled = true; }
     else modeSelect.disabled = false;
     const mode = modeSelect.value;
-    $("#habit-quantity-fields").hidden = type !== "positive" || mode !== "quantity";
+    const targetInput = form.elements.namedItem("target_value");
+    const targetIsActive = type === "positive" && mode === "quantity";
+    if (targetInput) {
+      targetInput.required = targetIsActive;
+      targetInput.disabled = !targetIsActive;
+    }
+    $("#habit-quantity-fields").hidden = !targetIsActive;
     $("#habit-negative-fields").hidden = type !== "negative";
     $("#habit-steps-fields").hidden = type !== "positive" || mode !== "checklist";
     $("#habit-unit-fields").hidden = mode !== "quantity";
@@ -1036,7 +1042,10 @@
     $("#habit-log-simple").hidden = habit.tracking_mode !== "simple";
     $("#habit-log-quantity").hidden = habit.tracking_mode !== "quantity";
     $("#habit-log-checklist").hidden = habit.tracking_mode !== "checklist";
-    $("#habit-log-quantity-label").textContent = habit.habit_type === "negative" ? `Cantidad registrada (${habit.unit || "unidades"})` : `Cantidad realizada (${habit.unit || "unidades"})`;
+    const quantityLogInput = $("#habit-log-quantity-value");
+    quantityLogInput.required = habit.tracking_mode === "quantity";
+    quantityLogInput.disabled = habit.tracking_mode !== "quantity";
+    $("#habit-log-quantity-caption").textContent = habit.habit_type === "negative" ? `Cantidad registrada (${habit.unit || "unidades"})` : `Cantidad realizada (${habit.unit || "unidades"})`;
     $("#habit-log-quantity-value").value = existingLog?.quantity_value ?? "";
     $("#habit-log-quantity-value").min = "0";
     $("#habit-log-quantity-hint").textContent = habit.habit_type === "negative"
@@ -1046,10 +1055,32 @@
       const previousRows = state.habitLogSteps.filter(item => item.habit_log_id === existingLog?.id && item.is_checked);
       const previousChecked = new Set(previousRows.map(item => item.step_id).filter(Boolean));
       const previousTitles = new Set(previousRows.map(item => String(item.title_snapshot || "").trim().toLocaleLowerCase("es")));
-      $("#habit-log-checklist-items").innerHTML = getHabitSteps(habit.id).map(step => `<label class="habit-log-step"><input type="checkbox" value="${step.id}" ${previousChecked.has(step.id) || previousTitles.has(String(step.title).trim().toLocaleLowerCase("es")) ? "checked" : ""}><span>${escapeHtml(step.title)}</span></label>`).join("") || `<p class="muted">Este hábito no tiene subtareas configuradas. Edita el hábito para agregarlas.</p>`;
+      const steps = getHabitSteps(habit.id);
+      $("#habit-log-checklist-items").innerHTML = steps.map(step => `<label class="habit-log-step"><input type="checkbox" value="${step.id}" ${previousChecked.has(step.id) || previousTitles.has(String(step.title).trim().toLocaleLowerCase("es")) ? "checked" : ""}><span>${escapeHtml(step.title)}</span></label>`).join("") || `<p class="muted">Este hábito no tiene subtareas configuradas. Edita el hábito para agregarlas.</p>`;
+      $("#habit-log-save").disabled = steps.length === 0;
+    } else {
+      $("#habit-log-save").disabled = false;
     }
     $("#habit-log-save").textContent = existingLog ? "Actualizar registro" : "Guardar registro";
+    if (habit.tracking_mode === "checklist") updateHabitChecklistProgress();
     openDialog("habit-log-dialog");
+  }
+
+  function updateHabitChecklistProgress() {
+    const inputs = $$("#habit-log-checklist-items input[type=checkbox]");
+    const total = inputs.length;
+    const checked = inputs.filter(input => input.checked).length;
+    const percent = total ? Math.round((checked / total) * 100) : 0;
+    const complete = total > 0 && checked === total;
+    const panel = $("#habit-log-checklist-progress");
+    if (panel) {
+      panel.innerHTML = `<div class="habit-checklist-progress-top"><strong>${checked} de ${total} subtareas</strong><span>${percent}%</span></div><div class="habit-checklist-progress-track"><span style="width:${percent}%"></span></div><small>${complete ? "Rutina completa: al guardar se completará el hábito." : "Marca las actividades que realizaste."}</small>`;
+    }
+    const button = $("#habit-log-save");
+    if (button) {
+      button.disabled = total === 0;
+      button.textContent = complete ? "Completar hábito" : "Guardar avance";
+    }
   }
 
   async function saveHabitLog(event) {
@@ -1059,7 +1090,9 @@
     let quantity = null;
     let checkedStepIds = [];
     if (habit.tracking_mode === "quantity") {
-      const raw = $("#habit-log-quantity-value").value;
+      const input = $("#habit-log-quantity-value");
+      if (!input) return setNotice("No se encontró el campo de cantidad. Cierra y vuelve a abrir el registro.", "error");
+      const raw = input.value.trim();
       if (raw === "" || !Number.isFinite(Number(raw)) || Number(raw) < 0) return setNotice("Ingresa una cantidad válida, igual o mayor que cero.", "error");
       quantity = Number(raw);
     }
@@ -1067,7 +1100,10 @@
       checkedStepIds = $$("#habit-log-checklist-items input:checked").map(input => input.value);
       if (!getHabitSteps(habit.id).length) return setNotice("Agrega subtareas antes de registrar este hábito.", "error");
     }
-    const button = $("#habit-log-save"); button.disabled = true;
+    const button = $("#habit-log-save");
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Guardando…";
     try {
       const { data, error } = await db.rpc("record_personal_habit", {
         p_habit_id: habit.id,
@@ -1076,16 +1112,29 @@
         p_checked_step_ids: checkedStepIds
       });
       if (error) throw error;
-      closeDialog("habit-log-dialog");
+
       const delta = Number(data || 0);
+      closeDialog("habit-log-dialog");
       if (delta > 0) setNotice(`Registro guardado: +${delta} XP.`);
       else if (delta < 0) {
         const overLimit = habit.habit_type === "negative" && quantity !== null && quantity > Number(habit.max_value);
-        setNotice(overLimit ? `Límite excedido: ${delta} XP. Puedes revisar el objetivo sin perder el registro.` : `Registro actualizado: ${delta} XP de ajuste.`, "info");
+        setNotice(overLimit ? `Límite excedido: ${delta} XP. El registro quedó guardado.` : `Registro actualizado: ${delta} XP de ajuste.`, "info");
       } else setNotice("Registro guardado. No hubo cambios de XP en esta actualización.", "info");
-      await loadData();
-    } catch (error) { handleError(error); await loadData(); }
-    finally { button.disabled = false; }
+
+      try {
+        await loadData();
+      } catch (refreshError) {
+        console.error("El registro se guardó, pero no se pudo actualizar la vista:", refreshError);
+        setNotice("El registro se guardó. Recarga la página para actualizar los datos visibles.", "info");
+      }
+    } catch (error) {
+      // No se recarga la aplicación al fallar el RPC: el diálogo conserva los checks/cantidad
+      // y el botón se libera inmediatamente para permitir corregir y volver a intentar.
+      handleError(error);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
   }
 
   async function saveTask(event) {
@@ -1114,7 +1163,9 @@
     const habitType = form.elements.habit_type.value;
     const trackingMode = habitType === "negative" ? "quantity" : form.elements.tracking_mode.value;
     const unit = form.elements.unit.value.trim() || (habitType === "negative" ? "minutos" : "unidades");
-    const targetValue = trackingMode === "quantity" && habitType === "positive" ? Number(form.elements.target_value.value) : 1;
+    const targetInput = form.elements.namedItem("target_value");
+    if (trackingMode === "quantity" && habitType === "positive" && !targetInput) return setNotice("No se encontró el objetivo de cantidad. Recarga la página e inténtalo de nuevo.", "error");
+    const targetValue = trackingMode === "quantity" && habitType === "positive" ? Number(targetInput.value) : 1;
     const maxValue = habitType === "negative" ? Number(form.elements.max_value.value) : null;
     const stepTitles = trackingMode === "checklist" ? [...new Set(form.elements.steps.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean))] : [];
     if (trackingMode === "quantity" && habitType === "positive" && (!Number.isFinite(targetValue) || targetValue <= 0)) return setNotice("El objetivo debe ser mayor que cero.", "error");
@@ -1213,6 +1264,9 @@
     $("#category-form").addEventListener("submit", saveCategory);
     $("#habit-form").addEventListener("submit", saveHabit);
     $("#habit-log-form").addEventListener("submit", saveHabitLog);
+    $("#habit-log-checklist-items").addEventListener("change", updateHabitChecklistProgress);
+    $("#habit-checklist-select-all").addEventListener("click", () => { $$("#habit-log-checklist-items input[type=checkbox]").forEach(input => { input.checked = true; }); updateHabitChecklistProgress(); });
+    $("#habit-checklist-clear").addEventListener("click", () => { $$("#habit-log-checklist-items input[type=checkbox]").forEach(input => { input.checked = false; }); updateHabitChecklistProgress(); });
     $("#task-difficulty").addEventListener("change", updateTaskXpHint);
     $("#habit-form").elements.difficulty.addEventListener("change", updateHabitXpHint);
     $("#habit-form").elements.habit_type.addEventListener("change", () => { updateHabitConfigFields(); updateHabitXpHint(); });

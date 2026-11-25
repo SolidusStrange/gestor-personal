@@ -751,3 +751,97 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 }
 
 .habit-current-progress { margin-top: 7px; padding: 8px 10px; border-radius: 8px; color: var(--text); background: color-mix(in srgb,var(--difficulty-color) 18%,var(--surface)); font-size: 10px; font-weight: 700; }
+
+/* =========================================================
+   V1.5.1 — correcciones de formulario, registro y densidad
+   ========================================================= */
+/* La leyenda ocupa su propio espacio y nunca se superpone con las tarjetas. */
+.difficulty-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 16px;
+  width: 100%;
+  margin: 12px 0 16px;
+  padding: 2px 0;
+  line-height: 1.5;
+  position: relative;
+  clear: both;
+}
+.difficulty-legend span { white-space: nowrap; }
+
+/* En escritorio las tarjetas usan un cuarto del ancho disponible. */
+.habit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+  margin: 0 0 22px;
+}
+.habit-card {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  border-radius: 12px;
+}
+.habit-card-top { align-items: flex-start; gap: 6px; }
+.habit-card-top .difficulty-pill { text-align: right; line-height: 1.35; }
+.habit-symbol { width: 30px; height: 30px; flex: 0 0 30px; }
+.habit-card-kind { margin-top: 7px; font-size: 9px; }
+.habit-card h3 { margin: 8px 0 3px; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+.habit-card p { min-height: 0; margin: 2px 0 0; font-size: 11px; line-height: 1.4; }
+.habit-card-details { margin-top: 8px; padding: 7px 8px; font-size: 10px; line-height: 1.4; }
+.habit-current-progress { margin-top: 6px; padding: 7px 8px; font-size: 9px; line-height: 1.4; }
+.habit-step-preview { gap: 4px; margin-top: 7px; }
+.habit-step-preview span, .habit-step-preview small { padding: 2px 6px; font-size: 8px; }
+.habit-card-foot {
+  align-items: center;
+  gap: 7px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+.habit-card-foot .muted { min-width: 0; font-size: 9px; line-height: 1.35; }
+.habit-card-foot .button, .habit-card-foot button { flex: 0 0 auto; }
+.habit-card-actions { gap: 12px; margin-top: 6px; }
+.habit-card-actions .text-button { padding: 3px 0; font-size: 10px; }
+.habit-chart-panel { margin-top: 22px; clear: both; }
+
+/* Objetivos y registro de cantidad: los captions están separados de sus inputs. */
+#habit-target-value-label, #habit-log-quantity-caption { display: inline; }
+#habit-target-value-label + input, #habit-log-quantity-caption + input { display: block; margin-top: 7px; }
+
+/* Registro de subtareas: progreso visible y controles explícitos. */
+.habit-checklist-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 7px 12px; }
+.habit-checklist-tools { display: flex; flex-wrap: wrap; gap: 12px; }
+.habit-checklist-tools .text-button { font-size: 10px; }
+.habit-checklist-progress {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0 7px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-soft);
+}
+.habit-checklist-progress-top { display: flex; justify-content: space-between; gap: 10px; color: var(--text); font-size: 11px; }
+.habit-checklist-progress-top span { color: var(--primary-strong); font-weight: 800; }
+.habit-checklist-progress-track { height: 7px; overflow: hidden; border-radius: 99px; background: var(--surface-muted); }
+.habit-checklist-progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .18s ease; }
+.habit-checklist-progress small { color: var(--text-soft); font-size: 10px; line-height: 1.4; }
+.habit-log-checklist-items { gap: 6px; margin: 8px 0 10px; }
+.habit-log-step { min-height: 38px; padding: 7px 9px; cursor: pointer; }
+.habit-log-step:has(input:checked) { border-color: color-mix(in srgb,var(--green) 45%,var(--border)); background: color-mix(in srgb,var(--green) 10%,var(--surface)); }
+
+@media (max-width: 1250px) {
+  .habit-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .habit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .habit-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .habit-card { padding: 13px; }
+  .habit-card-foot { flex-direction: row; align-items: center; }
+}
