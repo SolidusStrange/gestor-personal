@@ -1,73 +1,54 @@
-# Mi Progreso — actualización V1.1
+# Mi Progreso V1.6
 
-Esta actualización añade una primera capa de gamificación al gestor personal existente. Está pensada para instalarse encima de la V1.0 que ya está conectada a Supabase.
+Aplicación estática HTML/CSS/JavaScript conectada a Supabase Auth, PostgreSQL y Storage. Esta versión incorpora categorías compartidas entre tareas y hábitos, color personalizado por categoría y filtros analíticos.
 
-## Cambios incluidos
+## Instalar V1.6
 
-### Progresión de experiencia
+1. Haz una copia de seguridad del repositorio actual.
+2. En Supabase → SQL Editor, ejecuta `01_migration_v1_6.sql` una sola vez. No vuelvas a ejecutar las migraciones V1.2–V1.5.
+3. Reemplaza `index.html`, `app.js` y `styles.css` en la raíz del repositorio.
+4. Conserva tu `supabase-config.js` real y los archivos actuales de autenticación, tema y login.
+5. Haz commit y push a `main`.
+6. Recarga GitHub Pages con `Ctrl + F5`.
 
-El XP sigue acumulándose desde `personal_xp_events`; no se reinician ni se recalculan los puntos ya obtenidos. Lo que cambia es el costo para subir de nivel:
+## Qué cambia
 
-- Nivel 1 → 2: 100 XP.
-- Nivel 2 → 3: 125 XP.
-- Nivel 3 → 4: 150 XP.
-- El requisito aumenta 25 XP por cada nivel nuevo.
+### Categorías compartidas
 
-Los rangos se desbloquean al alcanzar determinados niveles:
+Las categorías pueden utilizarse tanto en tareas como en hábitos. En el formulario de categoría puedes establecer nombre y color. Puedes editar ambos valores desde el panel “Tus categorías” en Tareas. Las categorías eliminadas se desvinculan de tareas y hábitos sin borrar registros, subtareas, XP ni historial.
 
-| Rango | Nivel requerido | XP acumulado requerido |
-|---|---:|---:|
-| Iniciado | 1 | 0 |
-| Aprendiz | 3 | 225 |
-| Explorador | 5 | 550 |
-| Constante | 8 | 1.225 |
-| Disciplinado | 11 | 2.125 |
-| Veterano | 14 | 3.250 |
-| Élite | 17 | 4.600 |
-| Maestro | 21 | 6.750 |
-| Leyenda | 26 | 10.000 |
-| Mítico | 31 | 13.875 |
+### Tareas
 
-Los valores de XP que se entregan por completar tareas y hábitos no cambian en esta actualización.
+- El formulario de tarea permite seleccionar categoría.
+- Las tarjetas usan el color de la categoría.
+- La complejidad se indica con símbolos: ○ Fácil, ◐ Media, ◆ Difícil y ★ Muy difícil.
+- El filtro de tareas por categoría se mantiene.
 
-### Avatares
+### Hábitos
 
-Se incorporan 12 avatares iniciales basados en emoji. La elección se guarda en los metadatos de la cuenta autenticada de Supabase mediante `auth.updateUser({ data })`, así que se mantiene al iniciar sesión desde otro dispositivo. Estos datos solo se utilizan para presentación visual; no se usan para permisos ni seguridad.
+- El formulario de hábito permite asignar categoría.
+- Las tarjetas se agrupan visualmente por categoría.
+- Se puede filtrar el listado por categoría.
+- El color de cada tarjeta sigue el color de su categoría.
+- El icono de dificultad es independiente del color.
 
-### Dificultad visual
+### Gráficos
 
-Las tareas y hábitos muestran etiquetas de dificultad con colores consistentes:
+Los gráficos de Resumen y Hábitos permiten filtrar por categoría, hábito y período de 4, 8 o 12 semanas. Cuando se filtra una categoría (o un hábito con categoría asignada), la línea del gráfico utiliza ese color para relacionar los datos con el grupo seleccionado. “Todas las categorías” incluye todos los hábitos; “Sin categoría” permite revisar los hábitos aún no clasificados. Si se elige una categoría, el selector de hábito muestra únicamente los hábitos de esa categoría.
 
-- Fácil: verde.
-- Media: azul.
-- Difícil: naranja.
-- Muy difícil: rojo.
+## Migración SQL
 
-Las filas de tareas también incorporan una línea lateral del color correspondiente.
+`01_migration_v1_6.sql` es incremental y no destructiva. Añade `category_id` a `personal_habits`, crea una clave foránea con `ON DELETE SET NULL`, un índice y un trigger que impide asociar un hábito a una categoría de otro usuario. No modifica XP, misiones, logros, avatar ni revisiones semanales.
 
-### Gráfico de hábitos
+Las categorías se almacenan en `public.personal_categories`, una tabla que ya existía. El color ya se guardaba en esa tabla para tareas; esta versión agrega el mismo uso a los hábitos. Los hábitos que ya existían quedan sin categoría hasta que se editen.
 
-Se agrega un gráfico de línea de cumplimiento semanal con selector de 4, 8 o 12 semanas. El porcentaje compara los registros existentes con las instancias esperadas según la frecuencia configurada en cada hábito: diaria, lunes a viernes o semanal.
+## Seguridad
 
-El gráfico se calcula con `personal_habits` y `personal_habit_logs`. No necesita datos externos ni una nueva tabla. Como el sistema no guarda un historial de cambios de frecuencia, el gráfico histórico utiliza la frecuencia actual de cada hábito para interpretar sus semanas anteriores.
+- Se mantiene RLS de las tablas personales.
+- Las categorías siguen siendo propiedad de cada usuario.
+- El trigger valida en PostgreSQL la relación entre el usuario del hábito y la categoría.
+- `supabase-config.js` debe contener únicamente Project URL y publishable key. Nunca publiques `sb_secret`, `service_role` ni la contraseña de PostgreSQL.
 
-## Instalación en GitHub
+## Validación realizada
 
-Descomprime este paquete y copia estos tres archivos a la raíz del repositorio `gestor-personal`, reemplazando los existentes:
-
-- `index.html`
-- `app.js`
-- `styles.css`
-
-Después realiza `commit` y `push` a la rama `main`. GitHub Pages publicará la actualización.
-
-**No reemplaces `supabase-config.js`.** Conserva el archivo que ya contiene la URL y la publishable key de tu proyecto. Tampoco es necesario reemplazar `auth.js`, `login.html`, `login.css` ni `theme.js`.
-
-## Supabase y base de datos
-
-- No se modifica el esquema PostgreSQL.
-- No se crean ni eliminan tablas.
-- No ejecutes nuevamente `01_personal_schema.sql`.
-- Las tareas, hábitos, registros y eventos de XP existentes se conservan.
-
-Esta versión no usa claves privadas. La publishable key permanece en el archivo de configuración existente, y las operaciones de datos siguen protegidas por las políticas RLS que ya tienes configuradas.
+Se revisaron sintaxis de JavaScript, estructura HTML, IDs duplicados, referencias estáticas de selectores, parser CSS e integridad del ZIP. La migración no se ha ejecutado contra tu base real; haz primero una copia de seguridad y ejecuta el script en Supabase.

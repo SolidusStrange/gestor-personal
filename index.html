@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.5 · Hábitos flexibles y medallas</title>
+  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.6 · Categorías y analíticas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.5">
+  <link rel="stylesheet" href="styles.css?v=1.6">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.5" defer></script>
+  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.6" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -65,7 +65,7 @@
       <article class="panel dashboard-analytics-panel">
         <div class="panel-heading dashboard-analytics-heading">
           <div><div class="eyebrow">EVOLUCIÓN Y CONSTANCIA</div><h3>Cómo avanzan tus hábitos</h3><p class="muted">Observa tu cumplimiento semanal y detecta cambios en tu ritmo.</p></div>
-          <div class="habit-chart-controls"><label class="chart-range-label" for="dashboard-chart-habit">Hábito<select id="dashboard-chart-habit" aria-label="Hábito del resumen"><option value="all">Todos los hábitos</option></select></label><label class="chart-range-label" for="dashboard-chart-range">Período<select id="dashboard-chart-range" aria-label="Período del resumen"><option value="4">4 semanas</option><option value="8" selected>8 semanas</option><option value="12">12 semanas</option></select></label></div>
+          <div class="habit-chart-controls"><label class="chart-range-label" for="dashboard-chart-category">Categoría<select id="dashboard-chart-category" aria-label="Categoría del resumen"><option value="all">Todas las categorías</option></select></label><label class="chart-range-label" for="dashboard-chart-habit">Hábito<select id="dashboard-chart-habit" aria-label="Hábito del resumen"><option value="all">Todos los hábitos</option></select></label><label class="chart-range-label" for="dashboard-chart-range">Período<select id="dashboard-chart-range" aria-label="Período del resumen"><option value="4">4 semanas</option><option value="8" selected>8 semanas</option><option value="12">12 semanas</option></select></label></div>
         </div>
         <div class="dashboard-analytics-grid">
           <div><div id="dashboard-habit-chart-summary" class="chart-summary">Sin datos todavía</div><div id="dashboard-habit-chart" class="habit-chart dashboard-habit-chart" aria-live="polite"></div><div class="chart-footnote">El cálculo considera únicamente los días que ya correspondía realizar en la semana actual.</div></div>
@@ -83,21 +83,22 @@
     </section>
 
     <section id="tasks-view" class="view" hidden>
-      <div class="section-heading"><div><div class="eyebrow">ORGANIZA TUS PENDIENTES</div><h2>Tareas personales</h2><p class="muted">Completar una tarea te entrega XP según su complejidad.</p></div><div class="action-row"><button class="secondary" id="create-category-open">+ Categoría</button><button class="primary" data-open-task>+ Crear tarea</button></div></div>
-      <div class="difficulty-legend" aria-label="Leyenda de dificultad"><span><i class="difficulty-dot difficulty-easy"></i>Fácil</span><span><i class="difficulty-dot difficulty-medium"></i>Media</span><span><i class="difficulty-dot difficulty-hard"></i>Difícil</span><span><i class="difficulty-dot difficulty-epic"></i>Muy difícil</span></div>
+      <div class="section-heading"><div><div class="eyebrow">ORGANIZA TUS PENDIENTES</div><h2>Tareas personales</h2><p class="muted">El color identifica la categoría; el símbolo indica la dificultad.</p></div><div class="action-row"><button class="secondary" id="create-category-open">+ Categoría</button><button class="primary" data-open-task>+ Crear tarea</button></div></div>
+      <div class="difficulty-legend icon-legend" aria-label="Leyenda de dificultad"><span><i>○</i>Fácil</span><span><i>◐</i>Media</span><span><i>◆</i>Difícil</span><span><i>★</i>Muy difícil</span></div>
       <div class="filter-row"><input id="task-search" type="search" placeholder="Buscar una tarea" aria-label="Buscar una tarea"><select id="task-filter" aria-label="Filtrar tareas"><option value="active">Pendientes</option><option value="completed">Completadas</option><option value="archived">Archivadas</option><option value="all">Todas las no archivadas</option></select><select id="task-category-filter" aria-label="Filtrar por categoría"><option value="all">Todas las categorías</option></select></div>
       <div id="task-list" class="task-list"></div>
-      <div class="category-manager panel"><div class="panel-heading"><div><h3>Tus categorías</h3><p class="muted">Organiza tus tareas por área personal.</p></div></div><div class="category-strip" id="category-strip"></div></div>
+      <div class="category-manager panel"><div class="panel-heading"><div><h3>Tus categorías</h3><p class="muted">Las categorías pueden compartirse entre tareas y hábitos. El color se aplica a sus tarjetas.</p></div><button class="secondary small" type="button" data-open-category>+ Nueva categoría</button></div><div class="category-strip" id="category-strip"></div></div>
     </section>
 
     <section id="habits-view" class="view" hidden>
-      <div class="section-heading"><div><div class="eyebrow">CONSTANCIA</div><h2>Hábitos</h2><p class="muted">Registra tus avances diarios y acumula experiencia.</p></div><button class="primary" data-open-habit>+ Crear hábito</button></div>
-      <div class="info-strip">Puedes crear hábitos positivos o hábitos que quieras reducir. Cada uno admite un check, subtareas o registro de cantidad. La dificultad colorea el bloque completo: verde (fácil) a rojo (muy difícil).</div>
-      <div class="difficulty-legend" aria-label="Leyenda de dificultad"><span><i class="difficulty-dot difficulty-easy"></i>Fácil</span><span><i class="difficulty-dot difficulty-medium"></i>Media</span><span><i class="difficulty-dot difficulty-hard"></i>Difícil</span><span><i class="difficulty-dot difficulty-epic"></i>Muy difícil</span></div>
+      <div class="section-heading"><div><div class="eyebrow">CONSTANCIA</div><h2>Hábitos</h2><p class="muted">Registra tus avances diarios y acumula experiencia.</p></div><div class="action-row"><button class="secondary" id="create-category-habit-open">+ Categoría</button><button class="primary" data-open-habit>+ Crear hábito</button></div></div>
+      <div class="info-strip">Puedes crear hábitos positivos o hábitos que quieras reducir. Cada uno admite un check, subtareas o registro de cantidad. El color identifica su categoría; el símbolo indica la dificultad.</div>
+      <div class="difficulty-legend icon-legend" aria-label="Leyenda de dificultad"><span><i>○</i>Fácil</span><span><i>◐</i>Media</span><span><i>◆</i>Difícil</span><span><i>★</i>Muy difícil</span></div>
+      <div class="filter-row habit-filter-row"><select id="habit-category-filter" aria-label="Filtrar hábitos por categoría"><option value="all">Todas las categorías</option></select></div>
       <div id="habit-list" class="habit-grid"></div>
       <article class="panel habit-chart-panel">
         <div class="panel-heading habit-chart-heading"><div><h3>Cumplimiento de hábitos</h3><p class="muted">Evolución semanal de los hábitos que tenías programados.</p></div>
-          <div class="habit-chart-controls"><label class="chart-range-label" for="habit-chart-habit">Hábito<select id="habit-chart-habit" aria-label="Hábito del gráfico"><option value="all">Todos los hábitos</option></select></label><label class="chart-range-label" for="habit-chart-range">Período<select id="habit-chart-range" aria-label="Período del gráfico"><option value="4">4 semanas</option><option value="8" selected>8 semanas</option><option value="12">12 semanas</option></select></label></div>
+          <div class="habit-chart-controls"><label class="chart-range-label" for="habit-chart-category">Categoría<select id="habit-chart-category" aria-label="Categoría del gráfico"><option value="all">Todas las categorías</option></select></label><label class="chart-range-label" for="habit-chart-habit">Hábito<select id="habit-chart-habit" aria-label="Hábito del gráfico"><option value="all">Todos los hábitos</option></select></label><label class="chart-range-label" for="habit-chart-range">Período<select id="habit-chart-range" aria-label="Período del gráfico"><option value="4">4 semanas</option><option value="8" selected>8 semanas</option><option value="12">12 semanas</option></select></label></div>
         </div>
         <div id="habit-chart-summary" class="chart-summary">Aún no hay registros suficientes.</div>
         <div id="habit-chart" class="habit-chart" aria-live="polite"></div>
@@ -163,12 +164,13 @@
   <div class="modal-actions"><button type="button" class="secondary" data-close="task-dialog">Cancelar</button><button type="submit" class="primary" id="task-save-button">Guardar tarea</button></div>
 </form></dialog>
 
-<dialog id="category-dialog" class="modal"><form id="category-form"><div class="modal-heading"><div><div class="eyebrow">ORGANIZA TUS TAREAS</div><h2>Nueva categoría</h2></div><button type="button" class="icon-button" data-close="category-dialog" aria-label="Cerrar">✕</button></div><label>Nombre<input name="name" maxlength="45" required placeholder="Ej. Estudio, Salud, Hogar"></label><div class="modal-actions"><button type="button" class="secondary" data-close="category-dialog">Cancelar</button><button type="submit" class="primary">Guardar categoría</button></div></form></dialog>
+<dialog id="category-dialog" class="modal"><form id="category-form"><div class="modal-heading"><div><div class="eyebrow">ORGANIZA TUS ÁREAS</div><h2 id="category-dialog-title">Nueva categoría</h2></div><button type="button" class="icon-button" data-close="category-dialog" aria-label="Cerrar">✕</button></div><input type="hidden" name="id"><label>Nombre<input name="name" maxlength="45" required placeholder="Ej. Estudio, Salud, Hogar"></label><label>Color de la categoría<div class="category-color-field"><input name="color" id="category-color" type="color" value="#6e9d91" aria-label="Elegir color de categoría"><span class="muted">Este color identificará sus tareas, hábitos y gráficos.</span></div></label><div class="modal-actions"><button type="button" class="secondary" data-close="category-dialog">Cancelar</button><button type="submit" class="primary">Guardar categoría</button></div></form></dialog>
 
 <dialog id="habit-dialog" class="modal"><form id="habit-form"><div class="modal-heading"><div><div class="eyebrow">DISEÑA TU RUTINA</div><h2 id="habit-dialog-title">Crear hábito</h2></div><button type="button" class="icon-button" data-close="habit-dialog" aria-label="Cerrar">✕</button></div>
   <input type="hidden" name="id">
   <label>Nombre del hábito<input name="title" maxlength="100" required placeholder="Ej. Rutina de ejercicio"></label>
   <label>Descripción <span class="muted">(opcional)</span><textarea name="description" rows="2" maxlength="500"></textarea></label>
+  <label>Categoría<select name="category_id" id="habit-category"><option value="">Sin categoría</option></select></label>
   <div class="form-grid"><label>Tipo de hábito<select name="habit_type" id="habit-type"><option value="positive">Hábito que quiero desarrollar</option><option value="negative">Hábito que quiero reducir</option></select></label><label>Frecuencia<select name="frequency"><option value="daily">Todos los días</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Una vez por semana</option></select></label></div>
   <div class="form-grid"><label>Forma de registro<select name="tracking_mode" id="habit-tracking-mode"><option value="simple">Un check</option><option value="checklist">Subtareas</option><option value="quantity">Cantidad</option></select></label><label>Complejidad<select name="difficulty"><option value="easy">Fácil · 5 XP</option><option value="medium" selected>Media · 10 XP</option><option value="hard">Difícil · 15 XP</option><option value="epic">Muy difícil · 20 XP</option></select></label></div>
   <p class="hint" id="habit-type-help">Elige una forma de registrar la actividad. Puedes empezar con un check y cambiar a cantidad o subtareas cuando lo necesites.</p>
