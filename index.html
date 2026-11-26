@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.6.1 · Categorías y analíticas</title>
+  <meta name="theme-color" content="#f3f5f7"><title>Mi Progreso V1.7 · Aventura personal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.6.1">
+  <link rel="stylesheet" href="styles.css?v=1.7">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.6.1" defer></script>
+  <script src="supabase-config.js"></script><script src="theme.js" defer></script><script src="app.js?v=1.7" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -20,7 +20,7 @@
       <button class="nav-item" data-view="habits"><span class="nav-icon">↻</span><span>Hábitos</span></button>
       <button class="nav-item" data-view="missions"><span class="nav-icon">⚑</span><span>Misiones</span></button>
       <button class="nav-item" data-view="progress"><span class="nav-icon">✧</span><span>Experiencia</span></button>
-      <button class="nav-item" data-view="review"><span class="nav-icon">▤</span><span>Revisión</span></button>
+      <button class="nav-item" data-view="review"><span class="nav-icon">▤</span><span>Diario y revisión</span></button>
     </nav>
     <div class="sidebar-bottom"><div id="cloud-status" class="cloud-status"><i></i><span id="cloud-status-text">Conectando…</span></div><button id="logout-button" class="logout">Cerrar sesión</button></div>
   </aside>
@@ -83,8 +83,7 @@
     </section>
 
     <section id="tasks-view" class="view" hidden>
-      <div class="section-heading"><div><div class="eyebrow">ORGANIZA TUS PENDIENTES</div><h2>Tareas personales</h2><p class="muted">El color identifica la categoría; el símbolo indica la dificultad.</p></div><div class="action-row"><button type="button" class="secondary" id="create-category-open" data-open-category>+ Categoría</button><button class="primary" data-open-task>+ Crear tarea</button></div></div>
-      <div class="difficulty-legend icon-legend" aria-label="Leyenda de dificultad"><span><i>○</i>Fácil</span><span><i>◐</i>Media</span><span><i>◆</i>Difícil</span><span><i>★</i>Muy difícil</span></div>
+      <div class="section-heading"><div><div class="eyebrow">ORGANIZA TUS PENDIENTES</div><h2>Tareas personales</h2><p class="muted">Organiza tus misiones. Las estrellas indican su dificultad y los listones identifican la categoría.</p></div><div class="action-row"><button type="button" class="secondary" id="create-category-open" data-open-category>+ Categoría</button><button class="primary" data-open-task>+ Crear tarea</button></div></div>
       <div class="filter-row"><input id="task-search" type="search" placeholder="Buscar una tarea" aria-label="Buscar una tarea"><select id="task-filter" aria-label="Filtrar tareas"><option value="active">Pendientes</option><option value="completed">Completadas</option><option value="archived">Archivadas</option><option value="all">Todas las no archivadas</option></select><select id="task-category-filter" aria-label="Filtrar por categoría"><option value="all">Todas las categorías</option></select></div>
       <div id="task-list" class="task-list"></div>
       <div class="category-manager panel"><div class="panel-heading"><div><h3>Tus categorías</h3><p class="muted">Las categorías pueden compartirse entre tareas y hábitos. El color se aplica a sus tarjetas.</p></div><button class="secondary small" type="button" data-open-category>+ Nueva categoría</button></div><div class="category-strip" id="category-strip"></div></div>
@@ -92,8 +91,7 @@
 
     <section id="habits-view" class="view" hidden>
       <div class="section-heading"><div><div class="eyebrow">CONSTANCIA</div><h2>Hábitos</h2><p class="muted">Registra tus avances diarios y acumula experiencia.</p></div><div class="action-row"><button type="button" class="secondary" id="create-category-habit-open" data-open-category>+ Categoría</button><button class="primary" data-open-habit>+ Crear hábito</button></div></div>
-      <div class="info-strip">Puedes crear hábitos positivos o hábitos que quieras reducir. Cada uno admite un check, subtareas o registro de cantidad. El color identifica su categoría; el símbolo indica la dificultad.</div>
-      <div class="difficulty-legend icon-legend" aria-label="Leyenda de dificultad"><span><i>○</i>Fácil</span><span><i>◐</i>Media</span><span><i>◆</i>Difícil</span><span><i>★</i>Muy difícil</span></div>
+      <div class="info-strip">Puedes crear hábitos positivos o hábitos que quieras reducir. Cada uno admite un check, subtareas o registro de cantidad. Cada rutina se muestra como una misión. Las estrellas indican dificultad y el listón identifica su categoría.</div>
       <div class="filter-row habit-filter-row"><select id="habit-category-filter" aria-label="Filtrar hábitos por categoría"><option value="all">Todas las categorías</option></select></div>
       <div id="habit-list" class="habit-grid"></div>
       <article class="panel habit-chart-panel">
@@ -131,7 +129,7 @@
     </section>
 
     <section id="review-view" class="view" hidden>
-      <div class="section-heading"><div><div class="eyebrow">OBSERVAR, APRENDER Y AJUSTAR</div><h2>Revisión semanal</h2><p class="muted">Usa los datos para decidir qué mantener y qué pequeño cambio probar después.</p></div><label class="chart-range-label review-week-control" for="review-week-select">Semana analizada<select id="review-week-select" aria-label="Semana que quieres revisar"></select></label></div>
+      <div class="section-heading"><div><div class="eyebrow">OBSERVAR, APRENDER Y AJUSTAR</div><h2>Revisión y diario</h2><p class="muted">Observa tus datos semanalmente y registra lo que quieras recordar de cada día.</p></div><label class="chart-range-label review-week-control" for="review-week-select">Semana analizada<select id="review-week-select" aria-label="Semana que quieres revisar"></select></label></div>
       <div class="review-metrics-grid">
         <article class="panel review-metric"><div class="eyebrow">CUMPLIMIENTO DE HÁBITOS</div><strong id="review-habit-rate">—</strong><span id="review-habit-detail" class="muted">Sin datos</span></article>
         <article class="panel review-metric"><div class="eyebrow">TAREAS COMPLETADAS</div><strong id="review-task-count">0</strong><span class="muted">En la semana</span></article>
@@ -149,6 +147,26 @@
           </form>
         </article>
       </div>
+      <section class="daily-journal-section">
+        <div class="section-heading journal-section-heading"><div><div class="eyebrow">BITÁCORA DE AVENTURA</div><h2>Diario personal</h2><p class="muted">Guarda una nota diaria: qué hiciste, cómo te sentiste o qué quieres recordar.</p></div></div>
+        <div class="daily-journal-grid">
+          <article class="panel daily-journal-editor">
+            <div class="panel-heading"><div><div class="eyebrow">ENTRADA DEL DÍA</div><h3>Escribe tu registro</h3></div><span class="journal-quill" aria-hidden="true">✎</span></div>
+            <form id="daily-journal-form" class="daily-journal-form">
+              <div class="form-grid journal-date-title-grid">
+                <label>Fecha<input type="date" id="daily-journal-date" name="entry_date" required></label>
+                <label>Título <span class="muted">(opcional)</span><input type="text" id="daily-journal-title" name="title" maxlength="120" placeholder="Ej. Un buen día de estudio"></label>
+              </div>
+              <label>Tu mensaje<textarea id="daily-journal-content" name="content" rows="8" maxlength="5000" required placeholder="¿Qué salió bien hoy? ¿Qué aprendiste? ¿Qué quieres recordar de este día?"></textarea></label>
+              <div class="daily-journal-actions"><span id="daily-journal-status" class="muted" aria-live="polite">Una entrada por día. Puedes volver y editarla cuando quieras.</span><button type="submit" class="primary" id="daily-journal-save">Guardar entrada</button></div>
+            </form>
+          </article>
+          <article class="panel daily-journal-history-panel">
+            <div class="panel-heading"><div><div class="eyebrow">TUS RECUERDOS</div><h3>Entradas recientes</h3></div><span class="muted">Últimas 12</span></div>
+            <div id="daily-journal-history" class="daily-journal-history"></div>
+          </article>
+        </div>
+      </section>
       <div class="review-principle-note"><strong>La regla:</strong> conserva lo que ya funciona, cambia una sola cosa a la vez y vuelve a observar. Una semana difícil es información para ajustar, no una deuda que debas compensar.</div>
     </section>
   </main>
@@ -159,7 +177,7 @@
   <label>Nombre de la tarea<input name="title" maxlength="120" required placeholder="Ej. Estudiar estructuras de datos"></label>
   <label>Descripción <span class="muted">(opcional)</span><textarea name="description" rows="2" maxlength="500" placeholder="Agrega algún detalle o contexto"></textarea></label>
   <div class="form-grid"><label>Fecha objetivo<input name="due_date" type="date"></label><label>Categoría<select name="category_id" id="task-category"><option value="">Sin categoría</option></select></label></div>
-  <label>Complejidad y experiencia<select name="difficulty" id="task-difficulty"><option value="easy">Fácil · 10 XP</option><option value="medium" selected>Media · 20 XP</option><option value="hard">Difícil · 35 XP</option><option value="epic">Muy difícil · 50 XP</option></select></label>
+  <label>Dificultad de la misión<select name="difficulty_stars" id="task-difficulty"><option value="1">★☆☆☆☆ · 1 estrella · 10 XP</option><option value="2">★★☆☆☆ · 2 estrellas · 15 XP</option><option value="3" selected>★★★☆☆ · 3 estrellas · 20 XP</option><option value="4">★★★★☆ · 4 estrellas · 35 XP</option><option value="5">★★★★★ · 5 estrellas · 50 XP</option></select></label>
   <p class="hint" id="task-xp-hint">Al completar esta tarea recibirás 20 XP. Se otorgan una sola vez.</p>
   <div class="modal-actions"><button type="button" class="secondary" data-close="task-dialog">Cancelar</button><button type="submit" class="primary" id="task-save-button">Guardar tarea</button></div>
 </form></dialog>
@@ -172,7 +190,7 @@
   <label>Descripción <span class="muted">(opcional)</span><textarea name="description" rows="2" maxlength="500"></textarea></label>
   <label>Categoría<select name="category_id" id="habit-category"><option value="">Sin categoría</option></select></label>
   <div class="form-grid"><label>Tipo de hábito<select name="habit_type" id="habit-type"><option value="positive">Hábito que quiero desarrollar</option><option value="negative">Hábito que quiero reducir</option></select></label><label>Frecuencia<select name="frequency"><option value="daily">Todos los días</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Una vez por semana</option></select></label></div>
-  <div class="form-grid"><label>Forma de registro<select name="tracking_mode" id="habit-tracking-mode"><option value="simple">Un check</option><option value="checklist">Subtareas</option><option value="quantity">Cantidad</option></select></label><label>Complejidad<select name="difficulty"><option value="easy">Fácil · 5 XP</option><option value="medium" selected>Media · 10 XP</option><option value="hard">Difícil · 15 XP</option><option value="epic">Muy difícil · 20 XP</option></select></label></div>
+  <div class="form-grid"><label>Forma de registro<select name="tracking_mode" id="habit-tracking-mode"><option value="simple">Un check</option><option value="checklist">Subtareas</option><option value="quantity">Cantidad</option></select></label><label>Dificultad del hábito<select name="difficulty_stars" id="habit-difficulty"><option value="1">★☆☆☆☆ · 1 estrella · 5 XP</option><option value="2">★★☆☆☆ · 2 estrellas · 7 XP</option><option value="3" selected>★★★☆☆ · 3 estrellas · 10 XP</option><option value="4">★★★★☆ · 4 estrellas · 15 XP</option><option value="5">★★★★★ · 5 estrellas · 20 XP</option></select></label></div>
   <p class="hint" id="habit-type-help">Elige una forma de registrar la actividad. Puedes empezar con un check y cambiar a cantidad o subtareas cuando lo necesites.</p>
   <div id="habit-quantity-fields" class="habit-config-fields" hidden><label><span id="habit-target-value-label">Objetivo por registro</span><input name="target_value" type="number" min="0.01" step="0.01" value="10" required></label></div>
   <div id="habit-negative-fields" class="habit-config-fields" hidden><label>Límite máximo permitido<input name="max_value" type="number" min="0" step="0.01" value="60"><small class="muted">El límite se considera permitido. Superarlo genera una penalización de 5 XP como máximo.</small></label></div>

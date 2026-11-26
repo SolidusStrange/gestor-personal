@@ -1,5 +1,5 @@
 /*
- * MI PROGRESO V1.6 — categorías compartidas, colores por categoría y filtros analíticos.
+ * MI PROGRESO V1.7 — misiones RPG, dificultad por estrellas y diario personal.
  * HTML define la estructura; este archivo gestiona estado, eventos,
  * validación, renderizado y comunicación con Supabase.
  */
@@ -47,7 +47,7 @@
   ];
   const AVATAR_BUCKET = "mi-progreso-avatars";
   const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
-  const state = { user: null, categories: [], tasks: [], habits: [], habitSteps: [], habitLogs: [], habitLogSteps: [], xpEvents: [], missionTemplates: [], missionWeeks: [], achievements: [], weeklyReviews: [], reviewWeekStart: null, avatarUrl: null, currentLoggingHabitId: null, view: "dashboard", loading: false };
+  const state = { user: null, categories: [], tasks: [], habits: [], habitSteps: [], habitLogs: [], habitLogSteps: [], xpEvents: [], missionTemplates: [], missionWeeks: [], achievements: [], weeklyReviews: [], dailyJournalEntries: [], journalSelectedDate: null, reviewWeekStart: null, avatarUrl: null, currentLoggingHabitId: null, view: "dashboard", loading: false };
 
   const todayISO = () => {
     const d = new Date(); const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
@@ -61,8 +61,18 @@
   };
   const fmtDateTime = value => value ? new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "";
   const localDateFromTimestamp = value => { if (!value) return ""; const d = new Date(value); const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,"0"); const day = String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; };
-  const xpForTask = difficulty => TASK_XP[difficulty] ?? 20;
-  const xpForHabit = difficulty => HABIT_XP[difficulty] ?? 10;
+  const TASK_XP_STARS = { 1: 10, 2: 15, 3: 20, 4: 35, 5: 50 };
+  const HABIT_XP_STARS = { 1: 5, 2: 7, 3: 10, 4: 15, 5: 20 };
+  const LEGACY_STARS = { easy: 1, medium: 3, hard: 4, epic: 5 };
+  const LEGACY_DIFFICULTY = { 1: "easy", 2: "medium", 3: "medium", 4: "hard", 5: "epic" };
+  const getStars = (value, fallback = "medium") => {
+    const number = Number(value);
+    if (Number.isInteger(number) && number >= 1 && number <= 5) return number;
+    return LEGACY_STARS[value] || LEGACY_STARS[fallback] || 3;
+  };
+  const legacyDifficultyForStars = stars => LEGACY_DIFFICULTY[getStars(stars)];
+  const xpForTask = difficulty => TASK_XP_STARS[getStars(difficulty)] ?? TASK_XP[difficulty] ?? 20;
+  const xpForHabit = difficulty => HABIT_XP_STARS[getStars(difficulty)] ?? HABIT_XP[difficulty] ?? 10;
   const toLocalISO = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   const fromLocalISO = value => { const [y, m, d] = String(value).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
   const currentWeekStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return toLocalISO(d); };
@@ -115,17 +125,18 @@
       db.from("personal_mission_templates").select("*").order("starts_on", { ascending: false }),
       db.from("personal_mission_weeks").select("*").order("week_start", { ascending: false }).limit(520),
       db.from("personal_achievements").select("*").order("unlocked_at", { ascending: true }),
-      db.from("personal_weekly_reviews").select("*").order("week_start", { ascending: false }).limit(52)
+      db.from("personal_weekly_reviews").select("*").order("week_start", { ascending: false }).limit(52),
+      db.from("personal_daily_journal").select("*").order("entry_date", { ascending: false }).limit(120)
     ]);
     for (const result of results) if (result.error) throw result.error;
-    [state.categories, state.tasks, state.habits, state.habitSteps, state.habitLogs, state.habitLogSteps, state.xpEvents, state.missionTemplates, state.missionWeeks, state.achievements, state.weeklyReviews] = results.map(result => result.data || []);
+    [state.categories, state.tasks, state.habits, state.habitSteps, state.habitLogs, state.habitLogSteps, state.xpEvents, state.missionTemplates, state.missionWeeks, state.achievements, state.weeklyReviews, state.dailyJournalEntries] = results.map(result => result.data || []);
     setCloud("Sincronizado", true);
     renderAll();
   }
 
   function setView(view) {
     state.view = view;
-    const titles = { dashboard: "Resumen", tasks: "Tareas", habits: "Hábitos", missions: "Misiones", progress: "Experiencia", review: "Revisión semanal" };
+    const titles = { dashboard: "Resumen", tasks: "Tareas", habits: "Hábitos", missions: "Misiones", progress: "Experiencia", review: "Diario y revisión" };
     $$(".view").forEach(section => { section.hidden = section.id !== `${view}-view`; });
     $$(".nav-item").forEach(button => button.classList.toggle("active", button.dataset.view === view));
     $("#page-title").textContent = titles[view] || "Resumen";
@@ -204,10 +215,21 @@
   }
 
   function difficultyMarkup(value, xp) {
-    const key = value || "medium";
-    const symbol = DIFFICULTY_SYMBOL[key] || DIFFICULTY_SYMBOL.medium;
-    const label = DIFFICULTY_LABEL[key] || DIFFICULTY_LABEL.medium;
-    return `<span class="difficulty-pill" title="Dificultad: ${label}" aria-label="Dificultad ${label}"><span class="difficulty-symbol" aria-hidden="true">${symbol}</span>${label}${Number.isFinite(xp) ? ` · ${xp} XP` : ""}</span>`;
+    const stars = getStars(value);
+    const filled = "★".repeat(stars);
+    const empty = "☆".repeat(5 - stars);
+    const rarity = ["", "common", "uncommon", "rare", "epic", "legendary"][stars];
+    return `<span class="quest-ribbon quest-difficulty-ribbon rarity-${stars}" title="Dificultad: ${stars} de 5 estrellas" aria-label="Dificultad ${stars} de 5 estrellas"><span class="quest-stars" aria-hidden="true"><span class="quest-stars-filled">${filled}</span><span class="quest-stars-empty">${empty}</span></span><span class="quest-difficulty-label">${stars}/5</span>${Number.isFinite(xp) ? `<span class="quest-ribbon-xp">${xp} XP</span>` : ""}</span>`;
+  }
+
+  function categoryRibbon(category) {
+    const color = category?.color || "#73808a";
+    const name = category?.name || "Sin categoría";
+    return `<span class="quest-ribbon quest-category-ribbon" style="--ribbon-color:${escapeHtml(color)}" title="Categoría: ${escapeHtml(name)}"><span class="quest-category-dot" aria-hidden="true"></span>${escapeHtml(name)}</span>`;
+  }
+
+  function questCompletionStamp(label, detail = "") {
+    return `<div class="quest-completion-stamp" role="status"><span class="quest-stamp-check" aria-hidden="true">✓</span><span><strong>${escapeHtml(label)}</strong>${detail ? `<small>${escapeHtml(detail)}</small>` : ""}</span></div>`;
   }
 
   function xpAtLevel(level) {
@@ -263,13 +285,22 @@
   }
   function taskRow(task, compact = false) {
     const category = state.categories.find(cat => cat.id === task.category_id);
+    const stars = getStars(task.difficulty_stars ?? task.difficulty);
     const done = Boolean(task.completed_at);
     const archived = Boolean(task.archived_at);
-    return `<div class="task-row category-themed ${done ? "is-complete" : ""} ${archived ? "is-archived" : ""}" style="${categoryStyle(category)}" data-task-id="${task.id}">
-      <label class="check-wrap"><input type="checkbox" data-action="toggle-task" ${done ? "checked" : ""} ${archived ? "disabled" : ""} aria-label="Completar ${escapeHtml(task.title)}"><span class="custom-check"></span></label>
-      <div class="task-main"><div class="task-title"><span>${escapeHtml(task.title)}</span>${difficultyMarkup(task.difficulty, xpForTask(task.difficulty))}</div>${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ""}<div class="task-meta">${category ? `<span class="category-chip" style="--chip-color:${escapeHtml(category.color)}">${escapeHtml(category.name)}</span>` : `<span class="muted">Sin categoría</span>`}<span>${task.due_date ? `Objetivo: ${fmtDate(task.due_date)}` : "Sin fecha objetivo"}</span>${done ? `<span class="completed-label">Completada ${fmtDateTime(task.completed_at)}</span>` : ""}${archived ? `<span class="muted">Archivada ${fmtDateTime(task.archived_at)}</span>` : ""}</div></div>
-      ${compact ? "" : `<div class="task-actions"><button class="icon-button" data-action="edit-task" title="Editar" aria-label="Editar">✎</button>${archived ? `<button class="icon-button" data-action="restore-task" title="Restaurar">↶</button>` : `<button class="icon-button" data-action="archive-task" title="Archivar">▣</button>`}<button class="icon-button danger-text" data-action="delete-task" title="Eliminar definitivamente">×</button></div>`}
-    </div>`;
+    const completedStamp = done ? questCompletionStamp("MISIÓN COMPLETADA", fmtDateTime(task.completed_at)) : "";
+    const ribbons = `<div class="quest-ribbon-group">${difficultyMarkup(stars, xpForTask(stars))}${categoryRibbon(category)}</div>`;
+    return `<article class="task-row quest-card category-themed ${done ? "is-complete" : ""} ${archived ? "is-archived" : ""}" style="${categoryStyle(category)}" data-task-id="${task.id}">
+      <label class="check-wrap quest-checkbox"><input type="checkbox" data-action="toggle-task" ${done ? "checked" : ""} ${archived ? "disabled" : ""} aria-label="Completar misión ${escapeHtml(task.title)}"><span class="custom-check"></span></label>
+      <div class="task-main quest-main">
+        <div class="quest-top-line"><span class="quest-kicker">MISIÓN PERSONAL</span>${ribbons}</div>
+        <div class="task-title"><span>${escapeHtml(task.title)}</span></div>
+        ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ""}
+        ${completedStamp}
+        <div class="task-meta"><span>${task.due_date ? `Objetivo: ${fmtDate(task.due_date)}` : "Sin fecha objetivo"}</span>${archived ? `<span class="muted">Archivada ${fmtDateTime(task.archived_at)}</span>` : ""}</div>
+      </div>
+      ${compact ? "" : `<div class="task-actions"><button class="icon-button" data-action="edit-task" title="Editar misión" aria-label="Editar misión">✎</button>${archived ? `<button class="icon-button" data-action="restore-task" title="Restaurar">↶</button>` : `<button class="icon-button" data-action="archive-task" title="Archivar">▣</button>`}<button class="icon-button danger-text" data-action="delete-task" title="Eliminar definitivamente">×</button></div>`}
+    </article>`;
   }
 
   function formatCompletedDay(value) {
@@ -337,7 +368,7 @@
       const category = task ? state.categories.find(item => item.id === task.category_id) : null;
       const dateLabel = task?.completed_at ? formatCompletedDay(task.completed_at) : formatXPEventDay(event);
       const detail = category ? ` · ${escapeHtml(category.name)}` : "";
-      const tag = task ? difficultyMarkup(task.difficulty, null) : `<strong class="history-xp">${Number(event.xp_amount || 0) >= 0 ? "+" : ""}${Number(event.xp_amount || 0)} XP</strong>`;
+      const tag = task ? difficultyMarkup(task.difficulty_stars ?? task.difficulty, null) : `<strong class="history-xp">${Number(event.xp_amount || 0) >= 0 ? "+" : ""}${Number(event.xp_amount || 0)} XP</strong>`;
       return `<div class="dashboard-recent-row"><span class="dashboard-recent-check" aria-hidden="true">✓</span><div class="dashboard-recent-copy"><strong>${escapeHtml(event.title_snapshot)}</strong><small>${dateLabel}${detail}</small></div>${tag}</div>`;
     }).join("") || `<div class="empty-state">Cuando completes tareas, aquí aparecerán las más recientes junto con el día y la hora.</div>`;
     renderDashboardAnalytics();
@@ -382,21 +413,17 @@
     const editableRecord = habit.tracking_mode !== "simple";
     const disabled = !isHabitScheduledToday(habit) || (done && !editableRecord);
     const modeLabel = habit.habit_type === "negative" ? "Hábito a reducir" : habitTrackingLabel(habit);
-    const buttonLabel = done ? (editableRecord ? "Actualizar" : "Hecho") : currentLog ? "Actualizar" : "Registrar";
+    const buttonLabel = done ? (editableRecord ? "Actualizar" : "Listo") : currentLog ? "Actualizar" : "Registrar";
     const category = state.categories.find(cat => cat.id === habit.category_id);
-    return `<div class="habit-compact category-themed" style="${categoryStyle(category)}" data-habit-id="${habit.id}"><div><strong>${escapeHtml(habit.title)}</strong><small>${category ? `<span class="category-mini-label">${escapeHtml(category.name)}</span> · ` : ""}${DIFFICULTY_SYMBOL[habit.difficulty] || "◐"} ${DIFFICULTY_LABEL[habit.difficulty] || "Media"} · ${habitFrequencyLabel(habit)} · ${modeLabel}</small></div><button class="small ${done ? "secondary" : "primary"}" data-action="record-habit" ${disabled ? "disabled" : ""}>${buttonLabel}</button></div>`;
+    const stars = getStars(habit.difficulty_stars ?? habit.difficulty);
+    return `<div class="habit-compact category-themed" style="${categoryStyle(category)}" data-habit-id="${habit.id}"><div><strong>${escapeHtml(habit.title)}</strong><small>${category ? `${escapeHtml(category.name)} · ` : "Sin categoría · "}${"★".repeat(stars)}${"☆".repeat(5-stars)} · ${habitFrequencyLabel(habit)} · ${modeLabel}</small>${done ? `<span class="compact-quest-done">✓ Completado</span>` : ""}</div><button class="small ${done ? "secondary" : "primary"}" data-action="record-habit" ${disabled ? "disabled" : ""}>${buttonLabel}</button></div>`;
   }
 
   function renderHabits() {
     const categoryFilter = $("#habit-category-filter")?.value || "all";
     const visibleHabits = state.habits.filter(habit => categoryFilter === "all" || (categoryFilter === "none" ? !habit.category_id : habit.category_id === categoryFilter));
-    const categoryOrder = new Map(state.categories.map((category, index) => [category.id, index]));
-    visibleHabits.sort((a, b) => {
-      const ai = a.category_id ? (categoryOrder.get(a.category_id) ?? 9999) : 10000;
-      const bi = b.category_id ? (categoryOrder.get(b.category_id) ?? 9999) : 10000;
-      return ai - bi || a.title.localeCompare(b.title, "es");
-    });
-    let previousGroup = null;
+    // Se mantiene un único tablero: las categorías identifican cada tarjeta mediante su listón,
+    // pero no dividen ni reordenan la lista de hábitos.
     $("#habit-list").innerHTML = visibleHabits.map(habit => {
       const done = isHabitDoneThisPeriod(habit);
       const logs = state.habitLogs.filter(log => log.habit_id === habit.id).length;
@@ -413,7 +440,6 @@
       if (currentLog && habit.tracking_mode === "quantity") {
         const actual = Number(currentLog.quantity_value || 0);
         const target = habit.habit_type === "negative" ? Number(habit.max_value) : Number(habit.target_value);
-        const percent = target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
         const resultLabel = habit.habit_type === "negative" ? (currentLog.is_success ? "Dentro del límite" : "Límite excedido") : (currentLog.is_success ? "Objetivo alcanzado" : "Avance parcial");
         currentProgress = `${actual.toLocaleString("es-CL")} / ${target.toLocaleString("es-CL")} ${escapeHtml(habit.unit || "unidades")} · ${resultLabel}`;
       } else if (currentLog && habit.tracking_mode === "checklist") {
@@ -421,17 +447,27 @@
         const checked = logSteps.filter(item => item.is_checked).length;
         currentProgress = `${checked}/${logSteps.length || steps.length} subtareas marcadas${currentLog.is_success ? " · Rutina completa" : " · Avance parcial"}`;
       } else if (currentLog && currentLog.is_success) currentProgress = "Registrado para este período";
-      const kindLabel = habit.habit_type === "negative" ? "Reducir" : "Desarrollar";
+      const kindLabel = habit.habit_type === "negative" ? "HÁBITO A REDUCIR" : "RUTINA / HÁBITO";
       const category = state.categories.find(cat => cat.id === habit.category_id);
-      const groupKey = habit.category_id || "__uncategorized__";
-      const categoryHeading = groupKey !== previousGroup
-        ? `<div class="habit-category-heading" style="${categoryStyle(category)}"><span class="category-dot" style="background:${escapeHtml(category?.color || DEFAULT_CATEGORY_COLOR)}"></span><strong>${category ? escapeHtml(category.name) : "Sin categoría"}</strong><small>${visibleHabits.filter(item => (item.category_id || "__uncategorized__") === groupKey).length} hábitos</small></div>`
-        : "";
-      previousGroup = groupKey;
+      const stars = getStars(habit.difficulty_stars ?? habit.difficulty);
+      const ribbons = `<div class="quest-ribbon-group">${difficultyMarkup(stars, xpForHabit(stars))}${categoryRibbon(category)}</div>`;
+      const stamp = done
+        ? questCompletionStamp(habit.habit_type === "negative" ? "LÍMITE RESPETADO" : "HÁBITO COMPLETADO", currentLog ? fmtDate(currentLog.completed_on) : "")
+        : habit.habit_type === "negative" && currentLog && !currentLog.is_success
+          ? `<div class="quest-warning-stamp"><span aria-hidden="true">!</span> LÍMITE EXCEDIDO</div>` : "";
       const editableRecord = habit.tracking_mode !== "simple";
       const recordDisabled = !isHabitScheduledToday(habit) || (done && !editableRecord);
       const recordLabel = done ? (editableRecord ? "Actualizar" : "Completado") : currentLog ? "Actualizar" : "Registrar";
-      return `${categoryHeading}<article class="panel habit-card category-themed" style="${categoryStyle(category)}" data-habit-id="${habit.id}"><div class="habit-card-top"><span class="habit-symbol">${habit.habit_type === "negative" ? "↓" : "↻"}</span>${difficultyMarkup(habit.difficulty, xpForHabit(habit.difficulty))}</div><div class="habit-card-kind">${kindLabel} · ${habit.tracking_mode === "quantity" ? "Cantidad" : habit.tracking_mode === "checklist" ? "Subtareas" : "Check"}</div><h3>${escapeHtml(habit.title)}</h3><p class="muted">${escapeHtml(habit.description || freq)}</p><div class="habit-card-details">${details}</div>${category ? `<span class="category-chip habit-category-chip" style="--chip-color:${escapeHtml(category.color)}">${escapeHtml(category.name)}</span>` : `<span class="muted habit-no-category">Sin categoría</span>`}${currentProgress ? `<div class="habit-current-progress">${escapeHtml(currentProgress)}</div>` : ""}${habit.tracking_mode === "checklist" && steps.length ? `<div class="habit-step-preview">${steps.slice(0, 4).map(step => `<span>${escapeHtml(step.title)}</span>`).join("")}${steps.length > 4 ? `<small>+${steps.length - 4} más</small>` : ""}</div>` : ""}<div class="habit-card-foot"><span class="muted">${freq} · ${logs} registros</span><button class="primary small" data-action="record-habit" ${recordDisabled ? "disabled" : ""}>${recordLabel}</button></div><div class="habit-card-actions"><button class="text-button" data-action="edit-habit">Editar</button><button class="text-button danger-text" data-action="delete-habit">Eliminar</button></div></article>`;
+      return `<article class="panel habit-card quest-card category-themed ${done ? "is-complete" : ""}" style="${categoryStyle(category)}" data-habit-id="${habit.id}">
+        <div class="quest-top-line"><span class="quest-kicker">${kindLabel}</span>${ribbons}</div>
+        <div class="habit-card-title-row"><span class="habit-symbol" aria-hidden="true">${habit.habit_type === "negative" ? "↓" : "↻"}</span><div class="habit-card-title-copy"><h3>${escapeHtml(habit.title)}</h3><p class="muted">${escapeHtml(habit.description || freq)}</p></div></div>
+        <div class="habit-card-details">${details}</div>
+        ${stamp}
+        ${currentProgress ? `<div class="habit-current-progress">${escapeHtml(currentProgress)}</div>` : ""}
+        ${habit.tracking_mode === "checklist" && steps.length ? `<div class="habit-step-preview">${steps.slice(0, 4).map(step => `<span>${escapeHtml(step.title)}</span>`).join("")}${steps.length > 4 ? `<small>+${steps.length - 4} más</small>` : ""}</div>` : ""}
+        <div class="habit-card-foot"><span class="muted">${freq} · ${logs} registros</span><button class="primary small" data-action="record-habit" ${recordDisabled ? "disabled" : ""}>${recordLabel}</button></div>
+        <div class="habit-card-actions"><button class="text-button" data-action="edit-habit">Editar</button><button class="text-button danger-text" data-action="delete-habit">Eliminar</button></div>
+      </article>`;
     }).join("") || `<div class="empty-state panel">Todavía no has creado hábitos. Empieza con uno pequeño y fácil de repetir.</div>`;
   }
 
@@ -1019,12 +1055,64 @@
     finally { button.disabled = false; }
   }
 
+  function renderDailyJournal() {
+    const dateInput = $("#daily-journal-date");
+    if (!dateInput) return;
+    if (!dateInput.value) dateInput.value = state.journalSelectedDate || todayISO();
+    state.journalSelectedDate = dateInput.value;
+    const entry = state.dailyJournalEntries.find(item => item.entry_date === state.journalSelectedDate) || null;
+    $("#daily-journal-title").value = entry?.title || "";
+    $("#daily-journal-content").value = entry?.content || "";
+    $("#daily-journal-status").textContent = entry?.updated_at
+      ? `Última actualización: ${fmtDateTime(entry.updated_at)}`
+      : "Sin entrada guardada para este día. Puedes escribir una nota breve o extensa.";
+    const history = state.dailyJournalEntries.slice(0, 12);
+    $("#daily-journal-history").innerHTML = history.map(item => {
+      const preview = String(item.content || "").replace(/\s+/g, " ").trim();
+      const title = item.title?.trim() || "Entrada del día";
+      return `<button type="button" class="journal-history-entry ${item.entry_date === state.journalSelectedDate ? "is-selected" : ""}" data-journal-date="${item.entry_date}"><span class="journal-history-date">${fmtDate(item.entry_date)}</span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(preview.slice(0, 110))}${preview.length > 110 ? "…" : ""}</small></button>`;
+    }).join("") || `<div class="empty-state">Tus notas diarias aparecerán aquí. Puedes empezar con la de hoy.</div>`;
+  }
+
+  async function saveDailyJournal(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = $("#daily-journal-save");
+    const entryDate = $("#daily-journal-date").value;
+    const content = $("#daily-journal-content").value.trim();
+    if (!entryDate) return setNotice("Selecciona la fecha de la entrada.", "error");
+    if (!content) return setNotice("Escribe un mensaje antes de guardar.", "error");
+    const payload = {
+      user_id: state.user.id,
+      entry_date: entryDate,
+      title: $("#daily-journal-title").value.trim(),
+      content
+    };
+    button.disabled = true;
+    const previousLabel = button.textContent;
+    button.textContent = "Guardando…";
+    try {
+      const { data, error } = await db.from("personal_daily_journal")
+        .upsert(payload, { onConflict: "user_id,entry_date" }).select().single();
+      if (error) throw error;
+      state.dailyJournalEntries = [data, ...state.dailyJournalEntries.filter(item => item.entry_date !== data.entry_date)]
+        .sort((a, b) => b.entry_date.localeCompare(a.entry_date));
+      renderDailyJournal();
+      setNotice("Entrada del diario guardada.");
+    } catch (error) {
+      handleError(error);
+    } finally {
+      button.disabled = false;
+      button.textContent = previousLabel;
+    }
+  }
+
   function renderAll() {
     renderTopbar(); renderCategoryOptions(); renderLevel(); renderDashboard(); renderTasks(); renderHabits(); renderProgress();
     renderHabitChartOptions();
     renderHabitChart("#habit-chart", "#habit-chart-summary", "#habit-chart-range", "#habit-chart-habit", "#habit-chart-category");
     renderHabitChart("#dashboard-habit-chart", "#dashboard-habit-chart-summary", "#dashboard-chart-range", "#dashboard-chart-habit", "#dashboard-chart-category");
-    renderMissionSummary(); renderMissions(); renderMissionOptions(); renderWeeklyReview();
+    renderMissionSummary(); renderMissions(); renderMissionOptions(); renderWeeklyReview(); renderDailyJournal();
   }
 
   function openDialog(id) { const dialog = document.getElementById(id); if (dialog && !dialog.open) dialog.showModal(); }
@@ -1035,16 +1123,16 @@
     $("#task-dialog-title").textContent = task ? "Editar tarea" : "Crear tarea";
     form.elements.title.value = task?.title || ""; form.elements.description.value = task?.description || "";
     form.elements.due_date.value = task?.due_date || ""; form.elements.category_id.value = task?.category_id || "";
-    form.elements.difficulty.value = task?.difficulty || "medium";
+    form.elements.difficulty_stars.value = String(getStars(task?.difficulty_stars ?? task?.difficulty));
     updateTaskXpHint(); openDialog("task-dialog");
   }
-  function updateTaskXpHint() { const value = $("#task-difficulty").value; $("#task-xp-hint").textContent = `Al completar esta tarea recibirás ${xpForTask(value)} XP. Se otorgan una sola vez.`; }
+  function updateTaskXpHint() { const value = Number($("#task-difficulty").value); $("#task-xp-hint").textContent = `Dificultad ${value}/5 estrellas. Al completar esta misión recibirás ${xpForTask(value)} XP, una sola vez.`; }
   function openHabit(habit = null) {
     const form = $("#habit-form"); form.reset(); form.elements.id.value = habit?.id || "";
     $("#habit-dialog-title").textContent = habit ? "Editar hábito" : "Crear hábito";
     form.elements.title.value = habit?.title || ""; form.elements.description.value = habit?.description || "";
     form.elements.category_id.value = habit?.category_id || "";
-    form.elements.frequency.value = habit?.frequency || "daily"; form.elements.difficulty.value = habit?.difficulty || "medium";
+    form.elements.frequency.value = habit?.frequency || "daily"; form.elements.difficulty_stars.value = String(getStars(habit?.difficulty_stars ?? habit?.difficulty));
     form.elements.habit_type.value = habit?.habit_type || "positive";
     form.elements.tracking_mode.value = habit?.tracking_mode || "simple";
     form.elements.target_value.value = habit?.target_value ?? 10;
@@ -1079,7 +1167,7 @@
 
   function updateHabitXpHint() {
     const form = $("#habit-form");
-    const xp = xpForHabit(form.elements.difficulty.value);
+    const xp = xpForHabit(Number(form.elements.difficulty_stars.value));
     const type = form.elements.habit_type.value;
     const mode = type === "negative" ? "quantity" : form.elements.tracking_mode.value;
     const text = type === "negative"
@@ -1200,7 +1288,7 @@
 
   async function saveTask(event) {
     event.preventDefault(); const form = event.currentTarget; const id = form.elements.id.value;
-    const payload = { user_id: state.user.id, title: form.elements.title.value.trim(), description: form.elements.description.value.trim(), due_date: form.elements.due_date.value || null, category_id: form.elements.category_id.value || null, difficulty: form.elements.difficulty.value };
+    const stars = Number(form.elements.difficulty_stars.value); const payload = { user_id: state.user.id, title: form.elements.title.value.trim(), description: form.elements.description.value.trim(), due_date: form.elements.due_date.value || null, category_id: form.elements.category_id.value || null, difficulty_stars: stars, difficulty: legacyDifficultyForStars(stars) };
     if (!payload.title) return;
     const button = $("#task-save-button"); button.disabled = true;
     try {
@@ -1298,7 +1386,7 @@
     const payload = {
       user_id: state.user.id, title: form.elements.title.value.trim(), description: form.elements.description.value.trim(),
       category_id: form.elements.category_id.value || null,
-      frequency: form.elements.frequency.value, difficulty: form.elements.difficulty.value, is_active: true,
+      frequency: form.elements.frequency.value, difficulty_stars: Number(form.elements.difficulty_stars.value), difficulty: legacyDifficultyForStars(Number(form.elements.difficulty_stars.value)), is_active: true,
       habit_type: habitType, tracking_mode: trackingMode, target_value: targetValue, max_value: maxValue,
       unit, penalty_xp: 5
     };
@@ -1399,7 +1487,7 @@
     $("#habit-checklist-select-all").addEventListener("click", () => { $$("#habit-log-checklist-items input[type=checkbox]").forEach(input => { input.checked = true; }); updateHabitChecklistProgress(); });
     $("#habit-checklist-clear").addEventListener("click", () => { $$("#habit-log-checklist-items input[type=checkbox]").forEach(input => { input.checked = false; }); updateHabitChecklistProgress(); });
     $("#task-difficulty").addEventListener("change", updateTaskXpHint);
-    $("#habit-form").elements.difficulty.addEventListener("change", updateHabitXpHint);
+    $("#habit-form").elements.difficulty_stars.addEventListener("change", updateHabitXpHint);
     $("#habit-form").elements.habit_type.addEventListener("change", () => { updateHabitConfigFields(); updateHabitXpHint(); });
     $("#habit-form").elements.tracking_mode.addEventListener("change", () => { updateHabitConfigFields(); updateHabitXpHint(); });
     $("#task-search").addEventListener("input", renderTasks);
@@ -1440,6 +1528,15 @@
     $("#avatar").addEventListener("click", () => setView("progress"));
     $("#review-week-select").addEventListener("change", event => { state.reviewWeekStart = event.target.value; renderWeeklyReview(); });
     $("#weekly-review-form").addEventListener("submit", saveWeeklyReview);
+    $("#daily-journal-form").addEventListener("submit", saveDailyJournal);
+    $("#daily-journal-date").addEventListener("change", () => { state.journalSelectedDate = $("#daily-journal-date").value; renderDailyJournal(); });
+    $("#daily-journal-history").addEventListener("click", event => {
+      const entryButton = event.target.closest("[data-journal-date]");
+      if (!entryButton) return;
+      state.journalSelectedDate = entryButton.dataset.journalDate;
+      $("#daily-journal-date").value = state.journalSelectedDate;
+      renderDailyJournal();
+    });
     $("#review-edit-mission").addEventListener("click", openMissionDialog);
     $("#logout-button").addEventListener("click", async () => { await db.auth.signOut(); location.replace("login.html"); });
     document.addEventListener("keydown", event => { if (event.key === "Escape") $$("dialog[open]").forEach(dialog => dialog.close()); });
@@ -1457,7 +1554,7 @@
       db.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_OUT" || !session) location.replace("login.html"); });
     } catch (error) {
       console.error(error); showGate(error.message || "No se pudo preparar tu espacio.", true);
-      $("#app-gate-message").textContent = `${error.message || "Error de conexión."} Revisa que hayas aplicado la migración 01_migration_v1_5.sql y que las tablas personales de V1.2/V1.3 existan.`;
+      $("#app-gate-message").textContent = `${error.message || "Error de conexión."} Revisa que hayas aplicado 02_migration_v1_7_rpg_journal.sql y que las tablas personales de V1.2 a V1.6 existan.`;
     }
   }
   initialize();
